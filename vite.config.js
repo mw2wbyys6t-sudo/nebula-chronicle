@@ -14,7 +14,7 @@ const manualChunks = (id) => {
 export default defineConfig({
   plugins: [vue()],
   publicDir: 'public',
-  base: '/wonderful-screen/',
+  base: '/nebula-chronicle/',
   server: {
     host: '0.0.0.0',
     port: 8080

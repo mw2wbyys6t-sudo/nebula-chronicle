@@ -57,7 +57,7 @@
 ## 项目结构
 
 ```
-wonderful-screen/
+nebula-chronicle/
 ├── src/                          # Vue 3 源码
 │   ├── components/               # 8 个 Vue 组件
 │   │   ├── LoadingPhase.vue      # 加载阶段
@@ -149,7 +149,7 @@ npm run preview
 项目已配置 GitHub Actions 自动部署：
 1. 推送代码到 `main` 分支
 2. 前往仓库 Settings → Pages → Source 选择 **GitHub Actions**
-3. 每次推送自动构建并部署到 `https://<username>.github.io/wonderful-screen/`
+3. 每次推送自动构建并部署到 `https://<username>.github.io/nebula-chronicle/`
 
 ### 其他静态托管
 
@@ -198,7 +198,7 @@ python3 test-pages.py
 
 ## 在线体验
 
-静态网页体验链接：https://mw2wbyys6t-sudo.github.io/wonderful-screen/
+静态网页体验链接：https://mw2wbyys6t-sudo.github.io/nebula-chronicle/
 
 ---
 

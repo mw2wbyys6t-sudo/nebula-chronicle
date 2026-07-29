@@ -193,7 +193,7 @@ const coverImage = computed(() => {
 
 const watchLink = computed(() => {
   if (!props.anime) return '#';
-  // 拼接 BASE_URL 以便子路径部署（GitHub Pages 下为 /wonderful-screen/）
+  // 拼接 BASE_URL 以便子路径部署（GitHub Pages 下为 /nebula-chronicle/）
   return `${baseUrl}watch.html?title=${encodeURIComponent(props.anime.titleRomaji)}`;
 });
 
