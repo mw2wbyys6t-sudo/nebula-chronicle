@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星云放映厅 · 手势观影 | Nebula Theater</title>
+
+    <!-- MediaPipe Hands -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- 共享数据与工具 -->
+    <script src="js/shared-data.js"></script>
+    <script src="js/shared-utils.js"></script>
+    <script src="js/llm-config.js"></script>
+    <script src="js/llm-engine.js"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&family=Orbitron:wght@400;700;900&family=ZCOOL+XiaoWei&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --neon-blue: #00f3ff;
+            --neon-pink: #ff00ff;
+            --neon-purple: #b026ff;
+            --neon-cyan: #00ffff;
+            --deep-space: #050510;
+            --star-white: #e0e0ff;
+            --glass-bg: rgba(10, 10, 40, 0.6);
+            --glass-border: rgba(100, 100, 255, 0.2);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Serif SC', serif;
+            background: var(--deep-space);
+            color: var(--star-white);
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #nebula-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        .vignette {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 90;
+            background: radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.6) 100%);
+        }
+
+        .scanlines {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 91;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, 0.1) 2px,
+                rgba(0, 0, 0, 0.1) 4px
+            );
+            opacity: 0.12;
+        }
+
+        .scan-line {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
+            opacity: 0.3;
+            animation: scanMove 4s linear infinite;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        @keyframes scanMove {
+            0% { top: 0; }
+            100% { top: 100%; }
+        }
+
+        /* ===== 顶部导航 ===== */
+        .watch-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 24px 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        .back-btn {
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 243, 255, 0.35);
+            border-radius: 12px;
+            color: var(--neon-cyan);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .back-btn:hover {
+            background: rgba(0, 243, 255, 0.15);
+            box-shadow: 0 0 25px rgba(0, 243, 255, 0.25);
+            transform: translateX(-3px);
+        }
+
+        .watch-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            color: rgba(220, 235, 255, 0.9);
+            text-shadow: 0 0 20px rgba(0, 243, 255, 0.4);
+            letter-spacing: 2px;
+            text-align: right;
+            max-width: 50vw;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* ===== 主内容区 ===== */
+        .watch-main {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(960px, 92vw);
+            max-height: 90vh;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            pointer-events: none;
+        }
+
+        .video-stage {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            background: rgba(5, 5, 16, 0.8);
+            border: 1px solid rgba(100, 100, 255, 0.25);
+            border-radius: 20px;
+            overflow: hidden;
+            position: relative;
+            box-shadow:
+                0 0 60px rgba(0, 243, 255, 0.08),
+                inset 0 0 60px rgba(0, 0, 0, 0.4);
+            pointer-events: auto;
+        }
+
+        .video-stage::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--neon-cyan), var(--neon-purple), var(--neon-pink));
+            z-index: 5;
+        }
+
+        .video-stage iframe,
+        .video-stage video {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        .no-source {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: rgba(200, 200, 255, 0.7);
+            text-align: center;
+            padding: 40px;
+            z-index: 2;
+        }
+
+        .no-source-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            color: var(--neon-pink);
+            margin-bottom: 12px;
+            text-shadow: 0 0 20px rgba(255, 0, 255, 0.3);
+        }
+
+        .no-source-tip {
+            font-size: 0.9rem;
+            line-height: 1.8;
+            max-width: 500px;
+        }
+
+        .video-controls {
+            display: flex;
+            gap: 16px;
+            pointer-events: auto;
+        }
+
+        .control-btn {
+            padding: 12px 28px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 243, 255, 0.35);
+            border-radius: 12px;
+            color: var(--neon-cyan);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-btn:hover {
+            background: rgba(0, 243, 255, 0.15);
+            box-shadow: 0 0 25px rgba(0, 243, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .control-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* ===== 信息面板 ===== */
+        .info-panel {
+            width: 100%;
+            background: rgba(8, 8, 28, 0.72);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(100, 100, 255, 0.2);
+            border-radius: 16px;
+            padding: 20px 24px;
+            pointer-events: auto;
+        }
+
+        .info-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .info-year {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            color: var(--neon-pink);
+        }
+
+        .info-genre {
+            display: inline-block;
+            padding: 3px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--detail-accent, rgba(0, 243, 255, 0.4));
+            border-radius: 20px;
+            font-size: 0.75rem;
+            color: var(--detail-accent, var(--neon-cyan));
+            font-family: 'Noto Serif SC', serif;
+        }
+
+        .info-desc {
+            font-size: 0.9rem;
+            line-height: 1.8;
+            color: rgba(200, 210, 255, 0.82);
+        }
+
+        /* ===== 摄像头区域 ===== */
+        #camera-section {
+            position: fixed;
+            bottom: 30px;
+            left: 30px;
+            width: 200px;
+            z-index: 100;
+            pointer-events: auto;
+        }
+
+        .camera-container {
+            position: relative;
+            width: 200px;
+            height: 150px;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 2px solid rgba(0, 243, 255, 0.25);
+            box-shadow:
+                0 0 25px rgba(0, 243, 255, 0.15),
+                inset 0 0 25px rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        #input_video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        #output_canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+        }
+
+        .camera-label {
+            text-align: center;
+            margin-top: 8px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.7rem;
+            color: var(--neon-cyan);
+            letter-spacing: 2px;
+        }
+
+        .gesture-indicator {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 4px 8px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--neon-cyan);
+            border-radius: 6px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.65rem;
+            color: var(--neon-cyan);
+            backdrop-filter: blur(10px);
+        }
+
+        .camera-controls {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            display: flex;
+            gap: 4px;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .camera-container:hover .camera-controls,
+        .camera-controls:focus-within {
+            opacity: 1;
+        }
+
+        .camera-btn {
+            width: 22px;
+            height: 22px;
+            border-radius: 5px;
+            border: 1px solid rgba(0, 243, 255, 0.4);
+            background: rgba(5, 5, 16, 0.8);
+            color: var(--neon-cyan);
+            font-size: 0.9rem;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s ease;
+        }
+
+        .camera-btn:hover {
+            background: rgba(0, 243, 255, 0.25);
+        }
+
+        /* ===== 语音开关 ===== */
+        .voice-toggle {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 0, 255, 0.35);
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            color: var(--neon-pink);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 100;
+            pointer-events: auto;
+            box-shadow: 0 0 20px rgba(255, 0, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .voice-toggle:hover {
+            background: rgba(255, 0, 255, 0.15);
+            box-shadow: 0 0 25px rgba(255, 0, 255, 0.25);
+            transform: translateY(-2px);
+        }
+
+        .voice-toggle[aria-pressed="true"] {
+            background: rgba(255, 0, 255, 0.2);
+            box-shadow: 0 0 25px rgba(255, 0, 255, 0.35);
+            animation: voicePulse 1.6s ease-in-out infinite;
+        }
+
+        @keyframes voicePulse {
+            0%, 100% { box-shadow: 0 0 15px rgba(255, 0, 255, 0.2); }
+            50% { box-shadow: 0 0 30px rgba(255, 0, 255, 0.45); }
+        }
+
+        .voice-feedback {
+            position: fixed;
+            top: 80px;
+            right: 30px;
+            padding: 8px 16px;
+            background: rgba(255, 0, 255, 0.15);
+            border: 1px solid rgba(255, 0, 255, 0.35);
+            border-radius: 20px;
+            color: var(--neon-pink);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            z-index: 100;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            pointer-events: none;
+            backdrop-filter: blur(10px);
+        }
+
+        .voice-feedback.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ===== 闲聊开关 ===== */
+        .chat-toggle {
+            position: fixed;
+            top: 30px;
+            right: 82px;
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            border: 1px solid rgba(0, 255, 255, 0.35);
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            color: var(--neon-cyan);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 100;
+            pointer-events: auto;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .chat-toggle:hover {
+            background: rgba(0, 255, 255, 0.15);
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.25);
+            transform: translateY(-2px);
+        }
+
+        .chat-toggle[aria-pressed="true"] {
+            background: rgba(0, 255, 255, 0.2);
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.35);
+            animation: chatPulse 1.6s ease-in-out infinite;
+        }
+
+        @keyframes chatPulse {
+            0%, 100% { box-shadow: 0 0 15px rgba(0, 255, 255, 0.2); }
+            50% { box-shadow: 0 0 30px rgba(0, 255, 255, 0.45); }
+        }
+
+        .chat-panel {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: min(360px, calc(100vw - 60px));
+            max-height: min(480px, calc(100vh - 120px));
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(0, 255, 255, 0.25);
+            border-radius: 16px;
+            z-index: 99;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.4);
+        }
+
+        .chat-panel.open {
+            display: flex;
+        }
+
+        .chat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(0, 255, 255, 0.15);
+            color: var(--neon-cyan);
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .chat-header button {
+            background: transparent;
+            border: none;
+            color: var(--neon-cyan);
+            cursor: pointer;
+            font-size: 1.1rem;
+            line-height: 1;
+            padding: 2px 6px;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+
+        .chat-header button:hover {
+            background: rgba(0, 255, 255, 0.15);
+        }
+
+        .chat-history {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .chat-bubble {
+            max-width: 85%;
+            padding: 10px 14px;
+            border-radius: 14px;
+            font-size: 0.9rem;
+            line-height: 1.45;
+            word-break: break-word;
+        }
+
+        .chat-bubble.user {
+            align-self: flex-end;
+            background: rgba(255, 0, 255, 0.18);
+            color: #fff;
+            border-bottom-right-radius: 4px;
+        }
+
+        .chat-bubble.assistant {
+            align-self: flex-start;
+            background: rgba(0, 255, 255, 0.12);
+            color: #fff;
+            border-bottom-left-radius: 4px;
+        }
+
+        .chat-status {
+            padding: 8px 16px;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            text-align: center;
+            min-height: 30px;
+        }
+
+        /* ===== 手势光标 ===== */
+        #hand-cursor {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 40px;
+            height: 40px;
+            border: 2px solid var(--neon-pink);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9998;
+            transition: transform 0.15s ease-out, background 0.15s ease-out;
+            display: none;
+            box-shadow:
+                0 0 20px rgba(255, 0, 255, 0.5),
+                inset 0 0 10px rgba(255, 0, 255, 0.2);
+        }
+
+        #hand-cursor.active {
+            background: rgba(255, 0, 255, 0.2);
+        }
+
+        #hand-cursor::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 6px;
+            height: 6px;
+            background: var(--neon-pink);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        /* ===== 手势提示 ===== */
+        .gesture-hints {
+            position: fixed;
+            top: 30px;
+            left: 30px;
+            z-index: 100;
+            pointer-events: auto;
+            transition: transform 0.3s ease;
+        }
+
+        .hint-toggle {
+            position: absolute;
+            top: -12px;
+            right: -12px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 1px solid rgba(0, 243, 255, 0.4);
+            background: rgba(5, 5, 16, 0.9);
+            color: var(--neon-cyan);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 2;
+            transition: transform 0.3s ease, background 0.3s ease;
+        }
+
+        .hint-toggle:hover {
+            background: rgba(0, 243, 255, 0.2);
+        }
+
+        .gesture-hints[data-collapsed="true"] .hint-toggle {
+            transform: rotate(180deg);
+        }
+
+        .gesture-hints[data-collapsed="true"] .hint-card {
+            opacity: 0;
+            transform: translateY(-10px) scale(0.95);
+            pointer-events: none;
+        }
+
+        .hint-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 18px;
+            width: 240px;
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.1);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .hint-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            color: var(--neon-cyan);
+            margin-bottom: 12px;
+            text-align: center;
+            letter-spacing: 2px;
+        }
+
+        .hint-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 0.74rem;
+            color: rgba(210, 210, 255, 0.85);
+        }
+
+        .hint-icon {
+            width: 28px;
+            height: 28px;
+            margin-right: 10px;
+            background: rgba(0, 243, 255, 0.1);
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--neon-cyan);
+            flex-shrink: 0;
+        }
+
+        .hint-item.active .hint-icon {
+            background: rgba(0, 243, 255, 0.3);
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.4);
+            animation: iconPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes iconPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        /* ===== 滚动条 ===== */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(var(--neon-cyan), var(--neon-purple));
+            border-radius: 3px;
+        }
+
+        /* ===== 响应式 ===== */
+        @media (max-width: 768px) {
+            .watch-header {
+                padding: 16px;
+            }
+            .watch-title {
+                font-size: 0.85rem;
+                max-width: 40vw;
+            }
+            .back-btn {
+                padding: 8px 14px;
+                font-size: 0.75rem;
+            }
+            .control-btn {
+                padding: 10px 18px;
+                font-size: 0.75rem;
+            }
+            #camera-section {
+                width: 140px;
+                bottom: 15px;
+                left: 15px;
+            }
+            .camera-container {
+                width: 140px;
+                height: 105px;
+            }
+            .gesture-hints {
+                display: none;
+            }
+            .info-panel {
+                padding: 14px 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="vignette"></div>
+    <div class="scanlines"></div>
+    <div class="scan-line"></div>
+
+    <!-- 星云背景 -->
+    <canvas id="nebula-canvas"></canvas>
+
+    <!-- 顶部导航 -->
+    <header class="watch-header">
+        <a href="nebula-chronicle.html" class="back-btn">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+            返回星云
+        </a>
+        <div class="watch-title" id="watch-title">正在加载...</div>
+    </header>
+
+    <!-- 语音开关 -->
+    <button class="voice-toggle" id="voice-toggle" aria-label="开启语音" aria-pressed="false" title="语音开关">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+        </svg>
+    </button>
+    <div class="voice-feedback" id="voice-feedback"></div>
+
+    <!-- 闲聊模式开关 -->
+    <button class="chat-toggle" id="chat-toggle" aria-label="开启闲聊模式" aria-pressed="false" title="闲聊模式">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+            <circle cx="9" cy="10" r="1.5"/>
+            <circle cx="15" cy="10" r="1.5"/>
+        </svg>
+    </button>
+
+    <!-- 闲聊面板 -->
+    <div class="chat-panel" id="chat-panel" aria-label="闲聊对话">
+        <div class="chat-header">
+            <span>语音闲聊</span>
+            <div>
+                <button id="chat-clear" title="清空对话" aria-label="清空对话">🗑</button>
+                <button id="chat-close" title="关闭面板" aria-label="关闭面板">×</button>
+            </div>
+        </div>
+        <div class="chat-history" id="chat-history"></div>
+        <div class="chat-status" id="chat-status">点击气泡开启闲聊</div>
+    </div>
+
+    <!-- 主内容 -->
+    <main class="watch-main">
+        <div class="video-stage" id="video-stage">
+            <div class="no-source" id="no-source" style="display: none;">
+                <div class="no-source-title">暂无片源</div>
+                <div class="no-source-tip">
+                    该作品尚未配置 bilibili 或 videoUrl。<br>
+                    请在 js/shared-data.js 中添加片源后刷新页面。
+                </div>
+            </div>
+        </div>
+
+        <div class="video-controls">
+            <button class="control-btn" id="btn-play" onclick="togglePlay()">▶ 播放</button>
+            <button class="control-btn" id="btn-mute" onclick="toggleMute()">🔊 声音</button>
+            <button class="control-btn" onclick="seekVideo(-5)">⏪ 后退 5 秒</button>
+            <button class="control-btn" onclick="seekVideo(5)">⏩ 前进 5 秒</button>
+        </div>
+
+        <div class="info-panel" id="info-panel">
+            <div class="info-meta">
+                <div class="info-year" id="info-year">----</div>
+                <span class="info-genre" id="info-genre">--</span>
+            </div>
+            <p class="info-desc" id="info-desc">加载中...</p>
+        </div>
+    </main>
+
+    <!-- 摄像头区域 -->
+    <div id="camera-section">
+        <div class="camera-container">
+            <video id="input_video" autoplay playsinline></video>
+            <canvas id="output_canvas"></canvas>
+            <div class="gesture-indicator" id="gesture-indicator">等待手势...</div>
+        </div>
+        <div class="camera-label">GESTURE CAMERA</div>
+    </div>
+
+    <!-- 手势提示 -->
+    <div class="gesture-hints" id="gesture-hints" data-collapsed="false">
+        <button class="hint-toggle" id="hint-toggle" aria-label="折叠手势提示" aria-expanded="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+            </svg>
+        </button>
+        <div class="hint-card">
+            <div class="hint-title">观影手势</div>
+            <div class="hint-item" id="hint-point">
+                <div class="hint-icon">☝</div>
+                <div>食指指向 - 移动光标</div>
+            </div>
+            <div class="hint-item" id="hint-pinch">
+                <div class="hint-icon">👌</div>
+                <div>捏合 - 播放/暂停</div>
+            </div>
+            <div class="hint-item" id="hint-swipe">
+                <div class="hint-icon">✋</div>
+                <div>双指滑动 - 快进/快退</div>
+            </div>
+            <div class="hint-item" id="hint-open">
+                <div class="hint-icon">🖐</div>
+                <div>五指张开 - 返回星云</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 手势光标 -->
+    <div id="hand-cursor"></div>
+
+    <script>
+        // ===== DOM 缓存 =====
+        const dom = {
+            title: document.getElementById('watch-title'),
+            videoStage: document.getElementById('video-stage'),
+            noSource: document.getElementById('no-source'),
+            infoYear: document.getElementById('info-year'),
+            infoGenre: document.getElementById('info-genre'),
+            infoDesc: document.getElementById('info-desc'),
+            infoPanel: document.getElementById('info-panel'),
+            gestureIndicator: document.getElementById('gesture-indicator'),
+            handCursor: document.getElementById('hand-cursor'),
+            video: document.getElementById('input_video'),
+            outputCanvas: document.getElementById('output_canvas'),
+            gestureHints: document.getElementById('gesture-hints'),
+            hintToggle: document.getElementById('hint-toggle'),
+            cameraSection: document.getElementById('camera-section'),
+            voiceToggle: document.getElementById('voice-toggle'),
+            voiceFeedback: document.getElementById('voice-feedback'),
+            chatToggle: document.getElementById('chat-toggle'),
+            chatPanel: document.getElementById('chat-panel'),
+            chatHistory: document.getElementById('chat-history'),
+            chatStatus: document.getElementById('chat-status'),
+            btnPlay: document.getElementById('btn-play'),
+            btnMute: document.getElementById('btn-mute')
+        };
+
+        // ===== 全局状态 =====
+        const state = {
+            cameraReady: false,
+            currentGesture: 'none',
+            handX: 0,
+            handY: 0,
+            smoothedHandX: 0,
+            smoothedHandY: 0,
+            selectedNode: null,
+            isPinching: false,
+            pinchStartTime: 0,
+            openHandStartTime: 0,
+            lastPinchTime: 0,
+            lastGestureTime: 0,
+            lastHandX: 0,
+            velocityX: 0,
+            gestureMode: 'camera',
+            currentAnime: null,
+            currentIndex: -1,
+            videoElement: null,
+            isBilibili: false
+        };
+
+        // ===== 页面初始化 =====
+        function initPage() {
+            const { anime, index } = loadAnimeFromUrl();
+            state.currentAnime = anime;
+            state.currentIndex = index;
+
+            if (!anime) {
+                renderNotFound();
+                return;
+            }
+
+            renderAnimeInfo(anime);
+            renderVideoPlayer(anime);
+            initUI();
+            initCamera().catch(error => {
+                console.warn('摄像头初始化失败，切换到鼠标模式:', error);
+                setGestureMode('mouse');
+            });
+            initNebulaBackground();
+        }
+
+        function loadAnimeFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const index = parseInt(params.get('index'), 10);
+            const title = params.get('title');
+
+            if (!isNaN(index) && AnimeDB.get(index)) {
+                return { anime: AnimeDB.get(index), index };
+            }
+
+            if (title) {
+                const decoded = decodeURIComponent(title);
+                const found = AnimeDB.findByTitle(decoded);
+                if (found) {
+                    const idx = AnimeDB.all.findIndex(a => a.title === found.title);
+                    return { anime: found, index: idx };
+                }
+                const results = AnimeDB.search(decoded);
+                if (results.length > 0) {
+                    const idx = AnimeDB.all.findIndex(a => a.title === results[0].title);
+                    return { anime: results[0], index: idx };
+                }
+            }
+
+            return { anime: null, index: -1 };
+        }
+
+        function renderNotFound() {
+            dom.title.textContent = '未找到作品';
+            dom.noSource.style.display = 'flex';
+            dom.noSource.querySelector('.no-source-title').textContent = '未找到作品';
+            dom.noSource.querySelector('.no-source-tip').innerHTML =
+                '请通过主页选择动漫，或使用 <code>watch.html?index=0</code> / <code>watch.html?title=动漫名</code> 访问。';
+            dom.infoPanel.style.display = 'none';
+            document.querySelector('.video-controls').style.display = 'none';
+        }
+
+        function renderAnimeInfo(anime) {
+            dom.title.textContent = anime.title;
+            dom.infoYear.textContent = anime.year + '年';
+            dom.infoGenre.textContent = anime.genre;
+            dom.infoDesc.textContent = anime.desc;
+
+            const accent = getGenreColor(anime.genre);
+            dom.infoPanel.style.setProperty('--detail-accent', accent);
+        }
+
+        function renderVideoPlayer(anime) {
+            dom.videoStage.innerHTML = '';
+            dom.videoStage.appendChild(dom.noSource);
+
+            const bvid = extractBvid(anime.bilibili);
+
+            if (bvid) {
+                const iframe = document.createElement('iframe');
+                iframe.src = buildBilibiliEmbed(bvid);
+                iframe.allow = 'autoplay; fullscreen';
+                iframe.title = `${anime.title} - Bilibili`;
+                dom.videoStage.appendChild(iframe);
+                state.isBilibili = true;
+                state.videoElement = null;
+                updateControlButtons(false);
+            } else if (anime.videoUrl) {
+                const video = document.createElement('video');
+                video.src = anime.videoUrl;
+                video.controls = true;
+                video.playsInline = true;
+                video.poster = anime.image || '';
+                video.addEventListener('play', () => updatePlayButton(true));
+                video.addEventListener('pause', () => updatePlayButton(false));
+                video.addEventListener('volumechange', () => updateMuteButton(video.muted));
+                dom.videoStage.appendChild(video);
+                state.isBilibili = false;
+                state.videoElement = video;
+                updateControlButtons(true);
+            } else {
+                dom.noSource.style.display = 'flex';
+                state.isBilibili = false;
+                state.videoElement = null;
+                updateControlButtons(false);
+            }
+        }
+
+        function updateControlButtons(hasLocalVideo) {
+            dom.btnPlay.disabled = !hasLocalVideo;
+            dom.btnMute.disabled = !hasLocalVideo;
+            document.querySelectorAll('.video-controls .control-btn').forEach((btn, i) => {
+                if (i >= 2) btn.disabled = !hasLocalVideo;
+            });
+        }
+
+        function updatePlayButton(isPlaying) {
+            dom.btnPlay.textContent = isPlaying ? '⏸ 暂停' : '▶ 播放';
+        }
+
+        function updateMuteButton(isMuted) {
+            dom.btnMute.textContent = isMuted ? '🔇 静音' : '🔊 声音';
+        }
+
+        // ===== 播放控制 =====
+        function togglePlay() {
+            const video = state.videoElement;
+            if (!video) return;
+            if (video.paused) {
+                video.play().catch(e => console.warn('播放失败:', e));
+            } else {
+                video.pause();
+            }
+        }
+
+        function toggleMute() {
+            const video = state.videoElement;
+            if (!video) return;
+            video.muted = !video.muted;
+        }
+
+        function seekVideo(seconds) {
+            const video = state.videoElement;
+            if (!video) {
+                showVoiceFeedback(state.isBilibili ? 'B站视频暂不支持手势快进' : '无本地视频');
+                return;
+            }
+            video.currentTime = Math.max(0, Math.min(video.duration || Infinity, video.currentTime + seconds));
+            showVoiceFeedback(seconds > 0 ? `快进 ${seconds} 秒` : `后退 ${Math.abs(seconds)} 秒`);
+        }
+
+        // ===== 闲聊模式初始化 =====
+        function initChatMode() {
+            if (!dom.chatToggle || !dom.chatPanel) return;
+
+            dom.chatToggle.style.display = VoiceEngine.isSupported() ? 'flex' : 'none';
+
+            dom.chatToggle.addEventListener('click', () => {
+                const enabled = LLMAssistant.toggleChatMode();
+                dom.chatToggle.setAttribute('aria-pressed', String(enabled));
+                dom.chatPanel.classList.toggle('open', enabled);
+                dom.chatStatus.textContent = enabled ? '正在聆听…' : '点击气泡开启闲聊';
+                if (enabled) {
+                    const voiceToggle = dom.voiceToggle;
+                    if (voiceToggle && voiceToggle.style.display !== 'none' && !VoiceEngine.isListening) {
+                        VoiceEngine.onResult = handleVoiceCommand;
+                        VoiceEngine.start();
+                        updateVoiceButton(true);
+                    }
+                }
+            });
+
+            document.getElementById('chat-close').addEventListener('click', () => {
+                LLMAssistant.setChatMode(false);
+                dom.chatToggle.setAttribute('aria-pressed', 'false');
+                dom.chatPanel.classList.remove('open');
+                dom.chatStatus.textContent = '点击气泡开启闲聊';
+            });
+
+            document.getElementById('chat-clear').addEventListener('click', () => {
+                LLMAssistant.clearHistory();
+                dom.chatHistory.innerHTML = '';
+                dom.chatStatus.textContent = '对话已清空';
+            });
+
+            LLMAssistant.onChatUpdate = (history) => {
+                dom.chatHistory.innerHTML = '';
+                history.forEach(item => {
+                    const bubble = document.createElement('div');
+                    bubble.className = `chat-bubble ${item.role}`;
+                    bubble.textContent = item.content;
+                    dom.chatHistory.appendChild(bubble);
+                });
+                dom.chatHistory.scrollTop = dom.chatHistory.scrollHeight;
+            };
+
+            LLMAssistant.onFeedback = (message) => {
+                if (dom.chatPanel.classList.contains('open')) {
+                    dom.chatStatus.textContent = message;
+                }
+            };
+        }
+
+        // ===== UI 交互 =====
+        function initUI() {
+            // 手势提示折叠
+            if (dom.hintToggle && dom.gestureHints) {
+                dom.hintToggle.addEventListener('click', () => {
+                    const collapsed = dom.gestureHints.getAttribute('data-collapsed') === 'true';
+                    dom.gestureHints.setAttribute('data-collapsed', String(!collapsed));
+                    dom.hintToggle.setAttribute('aria-expanded', String(collapsed));
+                    dom.hintToggle.setAttribute('aria-label', collapsed ? '折叠手势提示' : '展开手势提示');
+                });
+            }
+
+            // 摄像头最小化/关闭
+            initCameraControls();
+
+            // 语音开关
+            const voiceToggle = dom.voiceToggle;
+            if (voiceToggle) {
+                const supported = VoiceEngine.isSupported();
+                voiceToggle.style.display = supported ? 'flex' : 'none';
+                VoiceEngine.onStateChange = updateVoiceButton;
+                voiceToggle.addEventListener('click', () => {
+                    if (VoiceEngine.isListening) {
+                        VoiceEngine.stop();
+                    } else {
+                        VoiceEngine.onResult = handleVoiceCommand;
+                        VoiceEngine.start();
+                    }
+                });
+            }
+
+            // 闲聊模式
+            initChatMode();
+        }
+
+        function initCameraControls() {
+            const section = dom.cameraSection;
+            if (!section) return;
+
+            const controls = document.createElement('div');
+            controls.className = 'camera-controls';
+            controls.innerHTML = `
+                <button class="camera-btn camera-minimize" aria-label="最小化摄像头" title="最小化">−</button>
+                <button class="camera-btn camera-close" aria-label="关闭摄像头" title="关闭">×</button>
+            `;
+
+            const container = section.querySelector('.camera-container');
+            if (container) container.appendChild(controls);
+
+            const minimizeBtn = controls.querySelector('.camera-minimize');
+            const closeBtn = controls.querySelector('.camera-close');
+
+            minimizeBtn.addEventListener('click', () => {
+                section.classList.toggle('minimized');
+                minimizeBtn.setAttribute('aria-label', section.classList.contains('minimized') ? '展开摄像头' : '最小化摄像头');
+                minimizeBtn.textContent = section.classList.contains('minimized') ? '+' : '−';
+            });
+
+            closeBtn.addEventListener('click', () => {
+                section.style.display = 'none';
+                if (state.gestureMode !== 'mouse') setGestureMode('mouse');
+            });
+        }
+
+        function updateVoiceButton(isListening) {
+            const btn = dom.voiceToggle;
+            if (!btn) return;
+            btn.setAttribute('aria-pressed', String(isListening));
+            btn.setAttribute('aria-label', isListening ? '关闭语音' : '开启语音');
+        }
+
+        function showVoiceFeedback(message) {
+            const el = dom.voiceFeedback;
+            if (!el) return;
+            el.textContent = message;
+            el.classList.add('show');
+            setTimeout(() => el.classList.remove('show'), 2500);
+        }
+
+        function handleVoiceCommand(text) {
+            showVoiceFeedback(`识别：${text}`);
+
+            // 优先走 LLM 语音助手
+            if (window.LLMAssistant) {
+                LLMAssistant.onFeedback = showVoiceFeedback;
+                LLMAssistant.onAction = (action, ctx) => {
+                    switch (action.action) {
+                        case 'play':
+                            togglePlay();
+                            break;
+                        case 'close':
+                            window.location.href = 'nebula-chronicle.html';
+                            break;
+                        case 'chat':
+                        default:
+                            showVoiceFeedback(action.message || '收到');
+                    }
+                };
+                LLMAssistant.process(text, { page: 'watch' });
+                return;
+            }
+
+            // 无 LLM 时的本地兜底
+            const lower = text.toLowerCase().replace(/[，。？！]/g, ' ').trim();
+
+            if (lower.includes('关闭') || lower.includes('退出') || lower.includes('返回')) {
+                window.location.href = 'nebula-chronicle.html';
+                return;
+            }
+
+            if (lower.includes('播放') || lower.includes('继续')) {
+                togglePlay();
+                return;
+            }
+
+            if (lower.includes('暂停')) {
+                const video = state.videoElement;
+                if (video) video.pause();
+                return;
+            }
+
+            if (lower.includes('静音')) {
+                const video = state.videoElement;
+                if (video) video.muted = true;
+                return;
+            }
+
+            if (lower.includes('取消静音') || lower.includes('打开声音')) {
+                const video = state.videoElement;
+                if (video) video.muted = false;
+                return;
+            }
+
+            if (lower.includes('快进') || lower.includes('前进')) {
+                seekVideo(5);
+                return;
+            }
+
+            if (lower.includes('后退') || lower.includes('快退')) {
+                seekVideo(-5);
+                return;
+            }
+        }
+
+        // ===== 手势识别 =====
+        async function initCamera() {
+            if (typeof Hands === 'undefined' || typeof Camera === 'undefined') {
+                throw new Error('MediaPipe 库未加载，无法启用手势识别');
+            }
+
+            dom.outputCanvas.width = CONFIG.CAMERA_WIDTH;
+            dom.outputCanvas.height = CONFIG.CAMERA_HEIGHT;
+
+            const canvasCtx = dom.outputCanvas.getContext('2d');
+            const hands = new Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            });
+
+            hands.setOptions({
+                maxNumHands: 1,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.7,
+                minTrackingConfidence: 0.7
+            });
+
+            hands.onResults((results) => onHandResults(results, canvasCtx));
+
+            const camera = new Camera(dom.video, {
+                onFrame: async () => {
+                    await hands.send({ image: dom.video });
+                },
+                width: CONFIG.CAMERA_WIDTH,
+                height: CONFIG.CAMERA_HEIGHT
+            });
+
+            await Promise.race([
+                camera.start(),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('摄像头启动超时')), CONFIG.CAMERA_TIMEOUT_MS)
+                )
+            ]);
+
+            state.cameraReady = true;
+            setGestureMode('camera');
+        }
+
+        function setGestureMode(mode) {
+            state.gestureMode = mode;
+            updateGestureIndicator(mode === 'mouse' ? '鼠标模式' : '等待手势...');
+        }
+
+        function onHandResults(results, canvasCtx) {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, CONFIG.CAMERA_WIDTH, CONFIG.CAMERA_HEIGHT);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+
+                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {
+                    color: '#00f3ff',
+                    lineWidth: 2
+                });
+                drawLandmarks(canvasCtx, landmarks, {
+                    color: '#ff00ff',
+                    lineWidth: 1,
+                    radius: 3
+                });
+
+                const indexTip = landmarks[8];
+                const rawX = (1 - indexTip.x) * window.innerWidth;
+                const rawY = indexTip.y * window.innerHeight;
+                const dx = rawX - state.smoothedHandX;
+                const dy = rawY - state.smoothedHandY;
+                if (Math.hypot(dx, dy) > CONFIG.HAND_DEAD_ZONE_PX) {
+                    state.smoothedHandX = lerp(state.smoothedHandX, rawX, CONFIG.CURSOR_LERP);
+                    state.smoothedHandY = lerp(state.smoothedHandY, rawY, CONFIG.CURSOR_LERP);
+                }
+                state.handX = state.smoothedHandX;
+                state.handY = state.smoothedHandY;
+
+                detectGesture(landmarks);
+                updateHandCursor(state.handX, state.handY);
+            } else {
+                hideHandCursor();
+                state.lastHandX = 0;
+                setDetectedGesture('none');
+            }
+
+            canvasCtx.restore();
+        }
+
+        function isFingerExtended(tip, pip, wrist) {
+            return distance(tip, wrist) > distance(pip, wrist) * 1.1;
+        }
+
+        function isThumbExtended(thumbTip, thumbIp, indexMcp, wrist) {
+            return distance(thumbTip, wrist) > distance(thumbIp, wrist) * 1.05;
+        }
+
+        function detectGesture(landmarks) {
+            const now = Date.now();
+            if (now - state.lastGestureTime < CONFIG.GESTURE_DEBOUNCE_MS) return;
+
+            const wrist = landmarks[0];
+            const thumbTip = landmarks[4];
+            const thumbIp = landmarks[3];
+            const indexTip = landmarks[8];
+            const indexPip = landmarks[6];
+            const indexMcp = landmarks[5];
+            const middleTip = landmarks[12];
+            const middlePip = landmarks[10];
+            const ringTip = landmarks[16];
+            const ringPip = landmarks[14];
+            const pinkyTip = landmarks[20];
+            const pinkyPip = landmarks[18];
+
+            const fingers = {
+                index: isFingerExtended(indexTip, indexPip, wrist),
+                middle: isFingerExtended(middleTip, middlePip, wrist),
+                ring: isFingerExtended(ringTip, ringPip, wrist),
+                pinky: isFingerExtended(pinkyTip, pinkyPip, wrist),
+                thumb: isThumbExtended(thumbTip, thumbIp, indexMcp, wrist)
+            };
+
+            const pinchDistance = distance(thumbTip, indexTip);
+            const isPinched = pinchDistance < CONFIG.PINCH_THRESHOLD;
+
+            let gesture = 'none';
+
+            if (isPinched) {
+                gesture = 'pinch';
+                if (state.pinchStartTime === 0) state.pinchStartTime = now;
+                if (now - state.pinchStartTime > CONFIG.PINCH_HOLD_MS) {
+                    handlePinch();
+                }
+            } else {
+                state.isPinching = false;
+                state.pinchStartTime = 0;
+
+                if (fingers.index && fingers.middle && fingers.ring && fingers.pinky) {
+                    gesture = 'open';
+                    if (state.openHandStartTime === 0) state.openHandStartTime = now;
+                    if (now - state.openHandStartTime > CONFIG.OPEN_HAND_HOLD_MS) {
+                        goBack();
+                    }
+                } else if (fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky) {
+                    gesture = 'point';
+                } else if (fingers.index && fingers.middle && !fingers.ring && !fingers.pinky) {
+                    gesture = 'swipe';
+                    handleSwipe();
+                }
+            }
+
+            if (gesture !== state.currentGesture) {
+                state.lastGestureTime = now;
+                setDetectedGesture(gesture);
+            }
+        }
+
+        function setDetectedGesture(gesture) {
+            state.currentGesture = gesture;
+            updateGestureIndicator(getGestureText(gesture));
+            updateHintHighlight(gesture);
+        }
+
+        function handlePinch() {
+            const now = Date.now();
+            if (!state.isPinching && now - state.lastPinchTime > CONFIG.PINCH_COOLDOWN_MS) {
+                state.isPinching = true;
+                state.lastPinchTime = now;
+                togglePlay();
+            }
+        }
+
+        function handleSwipe() {
+            if (state.lastHandX === 0) {
+                state.lastHandX = state.handX;
+                return;
+            }
+            const velocity = state.handX - state.lastHandX;
+            state.lastHandX = state.handX;
+            state.velocityX = lerp(state.velocityX, velocity, 0.2);
+
+            if (Math.abs(state.velocityX) > 8) {
+                seekVideo(state.velocityX > 0 ? 5 : -5);
+                state.lastHandX = 0;
+            }
+        }
+
+        function goBack() {
+            window.location.href = 'nebula-chronicle.html';
+        }
+
+        function getGestureText(gesture) {
+            const texts = {
+                none: '等待手势...',
+                point: '☝️ 指向模式',
+                swipe: '✋ 滑动模式',
+                pinch: '👌 点击确认',
+                open: '🖐 返回星云'
+            };
+            return texts[gesture] || '等待手势...';
+        }
+
+        function updateGestureIndicator(text) {
+            dom.gestureIndicator.textContent = text;
+        }
+
+        function updateHintHighlight(gesture) {
+            document.querySelectorAll('.hint-item').forEach(item => item.classList.remove('active'));
+            const hintMap = {
+                point: 'hint-point',
+                swipe: 'hint-swipe',
+                pinch: 'hint-pinch',
+                open: 'hint-open'
+            };
+            const target = document.getElementById(hintMap[gesture]);
+            if (target) target.classList.add('active');
+        }
+
+        function updateHandCursor(x, y) {
+            dom.handCursor.style.display = 'block';
+            const scale = state.currentGesture === 'pinch' ? 1.3 : 1;
+            dom.handCursor.style.transform = `translate(${x - 20}px, ${y - 20}px) scale(${scale})`;
+            dom.handCursor.classList.toggle('active', state.currentGesture === 'pinch');
+        }
+
+        function hideHandCursor() {
+            dom.handCursor.style.display = 'none';
+        }
+
+        // ===== 3D 星云背景 =====
+        function initNebulaBackground() {
+            const canvas = document.getElementById('nebula-canvas');
+            if (!window.THREE) {
+                canvas.style.background = 'radial-gradient(ellipse at center, #0a0a20 0%, #050510 100%)';
+                return;
+            }
+
+            const scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x050510, 0.0012);
+
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.z = 600;
+
+            const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            const palette = [
+                new THREE.Color(0x00f3ff),
+                new THREE.Color(0xff00ff),
+                new THREE.Color(0xb026ff),
+                new THREE.Color(0x00ffff),
+                new THREE.Color(0x4040ff)
+            ];
+
+            const starGeometry = new THREE.BufferGeometry();
+            const starPositions = [];
+            const starColors = [];
+            const starSizes = [];
+
+            for (let i = 0; i < CONFIG.NEBULA_3D_PARTICLES; i++) {
+                const x = (Math.random() - 0.5) * 2500;
+                const y = (Math.random() - 0.5) * 1800;
+                const z = (Math.random() - 0.5) * 1200;
+                starPositions.push(x, y, z);
+                const color = palette[Math.floor(Math.random() * palette.length)];
+                starColors.push(color.r, color.g, color.b);
+                starSizes.push(Math.random() * 2.5);
+            }
+
+            starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
+            starGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starColors, 3));
+            starGeometry.setAttribute('size', new THREE.Float32BufferAttribute(starSizes, 1));
+
+            const starMaterial = new THREE.PointsMaterial({
+                size: 2,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.85,
+                blending: THREE.AdditiveBlending,
+                sizeAttenuation: true
+            });
+
+            const starField = new THREE.Points(starGeometry, starMaterial);
+            scene.add(starField);
+
+            const cloudGeometry = new THREE.BufferGeometry();
+            const cloudPositions = [];
+            const cloudColors = [];
+
+            for (let i = 0; i < CONFIG.NEBULA_3D_CLOUDS; i++) {
+                const x = (Math.random() - 0.5) * 1600;
+                const y = (Math.random() - 0.5) * 1000;
+                const z = (Math.random() - 0.5) * 800 - 200;
+                cloudPositions.push(x, y, z);
+                const color = palette[i % palette.length];
+                cloudColors.push(color.r, color.g, color.b);
+            }
+
+            cloudGeometry.setAttribute('position', new THREE.Float32BufferAttribute(cloudPositions, 3));
+            cloudGeometry.setAttribute('color', new THREE.Float32BufferAttribute(cloudColors, 3));
+
+            const cloudMaterial = new THREE.PointsMaterial({
+                size: 260,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.12,
+                blending: THREE.AdditiveBlending,
+                sizeAttenuation: true,
+                depthWrite: false
+            });
+
+            const nebulaClouds = new THREE.Points(cloudGeometry, cloudMaterial);
+            scene.add(nebulaClouds);
+
+            const coreGeometry = new THREE.SphereGeometry(40, 32, 32);
+            const coreMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00f3ff,
+                transparent: true,
+                opacity: 0.08,
+                blending: THREE.AdditiveBlending
+            });
+            const core = new THREE.Mesh(coreGeometry, coreMaterial);
+            scene.add(core);
+
+            let targetCameraX = 0;
+            let targetCameraY = 0;
+
+            document.addEventListener('mousemove', (e) => {
+                targetCameraX = (e.clientX / window.innerWidth - 0.5) * 80;
+                targetCameraY = (e.clientY / window.innerHeight - 0.5) * 60;
+            });
+
+            function updateHandParallax() {
+                if (state.gestureMode === 'camera' && state.handX > 0) {
+                    targetCameraX = (state.handX / window.innerWidth - 0.5) * 80;
+                    targetCameraY = (state.handY / window.innerHeight - 0.5) * 60;
+                }
+            }
+
+            let animationId;
+            function animate() {
+                animationId = requestAnimationFrame(animate);
+                updateHandParallax();
+                camera.position.x = lerp(camera.position.x, targetCameraX, 0.04);
+                camera.position.y = lerp(camera.position.y, -targetCameraY, 0.04);
+                camera.lookAt(scene.position);
+                starField.rotation.y += 0.0003;
+                starField.rotation.x += 0.0001;
+                nebulaClouds.rotation.y -= 0.00015;
+                core.rotation.y += 0.001;
+                core.scale.setScalar(1 + Math.sin(Date.now() * 0.001) * 0.05);
+                renderer.render(scene, camera);
+            }
+
+            animate();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            window.addEventListener('beforeunload', () => {
+                if (animationId) cancelAnimationFrame(animationId);
+            });
+        }
+
+        window.addEventListener('load', initPage);
+    </script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+<h2>二次元手绘风格方案</h2>
+<p class="subtitle">基于你的描述，我整理了 3 种"炫酷二次元 + 手绘感"的设计方向。请选一种最贴近你想象的。</p>
+
+<div class="options">
+  <div class="option" data-choice="sketch-star" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>手绘星图 · 魔法阵召唤风</h3>
+      <p><strong>核心感觉：</strong>像翻开一本手绘的动漫设定集，星图、魔法阵、角色草图在星空背景下缓缓浮现。</p>
+      <p><strong>视觉元素：</strong></p>
+      <ul>
+        <li>深色星空背景 + 铅笔/墨水质感的星座连线</li>
+        <li>魔法阵以手绘描边形式出现，带有发光笔触</li>
+        <li>角色头像用圆形徽章框住，边缘有手绘高光</li>
+        <li>标题字体略带手写感，配合樱花/星尘粒子</li>
+      </ul>
+      <p><strong>必用素材：</strong>magic-circle.jpg、minimax-nebula-bg.png、8 张角色海报</p>
+      <p><strong>推荐动画：</strong>魔法阵一笔一画绘制出来、角色徽章逐个亮起、粒子像铅笔屑一样飘散</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="anime-pv" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>动漫 PV · 热血开场风</h3>
+      <p><strong>核心感觉：</strong>像看一部新番 OP，节奏快、色彩鲜明、速度线 + 角色特写 + BGM 感强烈。</p>
+      <p><strong>视觉元素：</strong></p>
+      <ul>
+        <li>视频片段作为动态背景，叠加漫画分镜式边框</li>
+        <li>角色海报以"角色卡"形式快速切换，带速度线</li>
+        <li>标题使用粗体动漫字幕风格，带描边和发光</li>
+        <li>四角加入动漫常见的"集中线"和拟声词效果</li>
+      </ul>
+      <p><strong>必用素材：</strong>nebula-trailer-v3-a/b/c.mp4、角色海报、动漫封面图</p>
+      <p><strong>推荐动画：</strong>视频背景 Ken Burns 缩放、角色卡飞入、标题故障风闪烁、漫画速度线扫过</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="magical-girl" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>魔法少女 · 变身启动界面</h3>
+      <p><strong>核心感觉：</strong>像魔法少女变身的启动画面，丝带、宝石、符文、闪光、粉色/紫色/蓝色的梦幻光效。</p>
+      <p><strong>视觉元素：</strong></p>
+      <ul>
+        <li>玻璃圆盘 title-glass-disc.jpg 作为中心法阵，缓慢旋转</li>
+        <li>角色围绕中心排列，像守护星座一样发光</li>
+        <li>手绘符文和樱花/羽毛/星光粒子漂浮</li>
+        <li>按钮设计成宝石形状，点击时有星尘爆发</li>
+      </ul>
+      <p><strong>必用素材：</strong>title-glass-disc.jpg、magic-circle.jpg、minimax-nebula-bg.png、角色海报</p>
+      <p><strong>推荐动画：</strong>玻璃圆盘旋转 + 光扫过、角色头像呼吸发光、符文手绘描边、点击按钮星尘四散</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>三种方案对比</h3>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>推荐场景</h4>
+      <ul>
+        <li><strong>A 手绘星图：</strong>适合强调"编年史""探索""收藏感"</li>
+        <li><strong>B 动漫 PV：</strong>适合强调"热血""视觉冲击""追番感"</li>
+        <li><strong>C 魔法少女：</strong>适合强调"梦幻""守护""仪式感"</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>实现复杂度</h4>
+      <ul>
+        <li><strong>A 手绘星图：</strong>中等，主要靠 CSS 动画 + Canvas 粒子</li>
+        <li><strong>B 动漫 PV：</strong>较高，需要更多视频调度和分镜动画</li>
+        <li><strong>C 魔法少女：</strong>中等，重在光效和粒子编排</li>
+      </ul>
+    </div>
+  </div>
+</div>

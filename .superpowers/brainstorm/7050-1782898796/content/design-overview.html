@@ -1,0 +1,90 @@
+<h2>星云编年史 · 宇宙版设计概览</h2>
+<p class="subtitle">基于你的需求提炼：一个比「诗云」更宏大的动漫宇宙</p>
+
+<div class="section">
+  <h3>真实需求拆解</h3>
+  <ul>
+    <li><strong>单文件主站</strong>：新建 <code>app.html</code>，把 <code>index.html</code> 的沉浸流程与 <code>nebula-chronicle.html</code> 的封面/主界面彻底融合。</li>
+    <li><strong>商业级大模型质感</strong>：不仅是炫技，而是有统一世界观（宇宙/星云/恒星）、完整交互闭环、专业动效与信息层级。</li>
+    <li><strong>游戏化加载</strong>：加载阶段要像游戏启动画面一样，有动态人物/能量场/进度叙事。</li>
+    <li><strong>封面阶段</strong>：保留 nebula-chronicle 封面全部元素（视频轮播、星点、流星、光斑、传送门），并可加入音频可视化、全息卡片、视差等新效果。</li>
+    <li><strong>主功能面</strong>：从「螺旋时间轴」升级为「3D 动漫星系」——每部作品是一颗恒星，每个流派是一片星云，全部围绕“编年史核心”旋转。</li>
+    <li><strong>数据野心</strong>：通过 AniList API 拉取 500-1000 部经典+热门作品，按官方流派分类，作为星系的数据基础。</li>
+    <li><strong>观影入口</strong>：作品详情保留“看动漫”按钮，跳转 <code>watch.html</code>，当前不深入改造观影页。</li>
+    <li><strong>可扩展</strong>：分类体系预留“多元宇宙”扩展位，后期可加入年代、类型、情感主题等维度。</li>
+  </ul>
+</div>
+
+<div class="section">
+  <h3>宇宙世界观设定</h3>
+  <div class="mockup">
+    <div class="mockup-header">星系结构</div>
+    <div class="mockup-body">
+      <ul>
+        <li><strong>中心：编年史核心（Chronicle Core）</strong><br>一颗缓慢旋转的“动画起源之星”，象征 1963 年《铁臂阿童木》开启的日本动画纪元。所有星云围绕它公转。</li>
+        <li><strong>星云：AniList 官方流派</strong><br>科幻、冒险、机甲、喜剧、奇幻、战斗、魔法、悬疑、爱情、恐怖、日常、音乐、运动、超自然……每片星云有自己的主题色与粒子氛围。</li>
+        <li><strong>恒星：单部作品</strong><br>亮度 = 人气/影响力，大小 = 评分/历史地位，颜色 = 流派，位置 = 所属星云内的坐标（可按年代/影响力再分层）。</li>
+        <li><strong>星座连线</strong><br>同系列、同导演、同工作室或共享标签的作品之间用微弱光带连接，hover 时高亮。</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>四阶段流程</h3>
+  <div class="options">
+    <div class="option" data-choice="phase-loading">
+      <div class="letter">0</div>
+      <div class="content">
+        <h3>加载阶段 · 次元启动</h3>
+        <p>游戏式加载：中央角色剪影/能量体 + 旋转光环 + 进度百分比 + 随机 tips（如“正在连接星云数据库…”）。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="phase-showcase">
+      <div class="letter">1</div>
+      <div class="content">
+        <h3>展示阶段 · 全息角色</h3>
+        <p>代表性作品卡片以全息投影形式环绕核心漂浮，带扫描线、反光、微旋转，营造未来感。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="phase-entrance">
+      <div class="letter">2</div>
+      <div class="content">
+        <h3>入口阶段 · 星云封面</h3>
+        <p>nebula-chronicle 封面完整移植 + 音频可视化脉冲 + 鼠标视差，点击“开始旅程”进入星系。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="phase-galaxy">
+      <div class="letter">3</div>
+      <div class="content">
+        <h3>主界面 · 动漫星系</h3>
+        <p>Three.js 3D 宇宙：可拖拽旋转、滚轮缩放、hover 看信息、点击打开详情面板、顶部有流派筛选与搜索。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>推荐实现策略</h3>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>推荐：预拉取 JSON + 动态加载</h4>
+      <ul>
+        <li>用 Node 脚本 <code>scripts/fetch-anilist.js</code> 一次性拉取 500-1000 部作品</li>
+        <li>生成 <code>data/anime-corpus.json</code> 与 <code>data/genre-manifest.json</code></li>
+        <li>运行时只加载 JSON，不依赖 AniList 实时可用性</li>
+        <li>静态托管友好，性能可控</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>不推荐：运行时全量 API</h4>
+      <ul>
+        <li>AniList 有速率限制，1000 条需多次分页请求</li>
+        <li>首次打开加载慢，用户等待久</li>
+        <li>离线/网络波动时直接不可用</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle">如果这个方向对，我会把它写成正式设计文档，再进入实施计划。</p>

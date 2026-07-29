@@ -1,0 +1,82 @@
+{
+  "generatedAt": "2026-07-02T13:01:30.858Z",
+  "count": 1711,
+  "genres": {
+    "Adventure": {
+      "count": 427,
+      "color": "#ffcc00"
+    },
+    "Drama": {
+      "count": 734,
+      "color": "#b892ff"
+    },
+    "Fantasy": {
+      "count": 466,
+      "color": "#b026ff"
+    },
+    "Action": {
+      "count": 741,
+      "color": "#ff4444"
+    },
+    "Comedy": {
+      "count": 616,
+      "color": "#ffee66"
+    },
+    "Sci-Fi": {
+      "count": 384,
+      "color": "#00f3ff"
+    },
+    "Horror": {
+      "count": 111,
+      "color": "#aa66ff"
+    },
+    "Romance": {
+      "count": 444,
+      "color": "#ff88cc"
+    },
+    "Supernatural": {
+      "count": 317,
+      "color": "#b026ff"
+    },
+    "Mystery": {
+      "count": 244,
+      "color": "#aa66ff"
+    },
+    "Psychological": {
+      "count": 216,
+      "color": "#00f3ff"
+    },
+    "Thriller": {
+      "count": 114,
+      "color": "#aa66ff"
+    },
+    "Slice of Life": {
+      "count": 334,
+      "color": "#66ffaa"
+    },
+    "Sports": {
+      "count": 145,
+      "color": "#ffcc00"
+    },
+    "Music": {
+      "count": 118,
+      "color": "#66ffaa"
+    },
+    "Ecchi": {
+      "count": 152,
+      "color": "#ff99cc"
+    },
+    "Mecha": {
+      "count": 165,
+      "color": "#00ccff"
+    },
+    "Mahou Shoujo": {
+      "count": 111,
+      "color": "#ff88cc"
+    },
+    "Hentai": {
+      "count": 100,
+      "color": "#ff69b4"
+    }
+  }
+}

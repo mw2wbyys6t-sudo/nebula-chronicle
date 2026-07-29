@@ -1,0 +1,26 @@
+<h2>新主页 app.html 的流程方案</h2>
+<p class="subtitle">选一个你最想要的整体体验路径</p>
+
+<div class="options">
+  <div class="option" data-choice="cover-to-app" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>封面 → 主应用</h3>
+      <p>用 nebula-chronicle 的酷炫封面作为启动页，点击后淡入到完整主界面（时间轴、手势、详情面板），全部在同一页完成，不再跳转。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="three-phase" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>保留 index 三阶段</h3>
+      <p>保留 index.html 的加载 → 角色展示 → 入口三阶段，但把入口视觉换成 nebula-chronicle 封面风格，点击进入主应用。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="mode-select" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>封面 → 模式选择</h3>
+      <p>封面之后出现两个入口：【沉浸模式（手势+时间轴）】和【轻量模式（纯浏览）】，由用户选择。</p>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#060310">
+  <meta name="description" content="星云编年史 · Nebula Chronicle — 沉浸式手势交互动漫宇宙，穿越 60 年二次元历史">
+  <title>星云编年史 · Nebula Chronicle</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <!-- Google Fonts 异步加载 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&family=Orbitron:wght@400;700;900&family=ZCOOL+XiaoWei&display=swap" onload="this.rel='stylesheet'">
+  <noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&family=Orbitron:wght@400;700;900&family=ZCOOL+XiaoWei&display=swap">
+  </noscript>
+  <style>
+    html { font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    html, body { margin: 0; padding: 0; height: 100%; background: #060310; overflow: hidden; }
+    #app { min-height: 100%; }
+    /* 首屏幕布：Vue 挂载后移除 */
+    .boot-curtain {
+      position: fixed; inset: 0; z-index: 99999;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 50% 45%, #1a0a2e 0%, #0d0520 45%, #060310 100%);
+      transition: opacity 0.5s ease;
+    }
+    .boot-curtain.gone { opacity: 0; pointer-events: none; }
+    .boot-spinner {
+      width: 40px; height: 40px; border-radius: 50%;
+      border: 2px solid rgba(255,158,196,0.2);
+      border-top-color: #ff9ec4;
+      animation: bootspin 1s linear infinite;
+      box-shadow: 0 0 16px rgba(255,158,196,0.4);
+    }
+    @keyframes bootspin { to { transform: rotate(360deg); } }
+    .boot-text {
+      margin-top: 20px;
+      color: #ff9ec4; font-family: 'Noto Sans SC', sans-serif;
+      letter-spacing: 6px; font-size: 14px;
+      opacity: 0.7; animation: preloadPulse 1.8s ease-in-out infinite;
+    }
+    @keyframes preloadPulse {
+      0%, 100% { opacity: 0.35; }
+      50% { opacity: 0.9; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div class="boot-curtain" id="boot-curtain">
+    <div class="boot-spinner"></div>
+    <div class="boot-text">✦ 召唤星辰中 ✦</div>
+  </div>
+  <script type="module" src="/src/main.js" fetchpriority="high"></script>
+  <script>
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const c = document.getElementById('boot-curtain');
+        if (c) { c.classList.add('gone'); setTimeout(() => c.remove(), 600); }
+      }, 300);
+    });
+  </script>
+</body>
+</html>
