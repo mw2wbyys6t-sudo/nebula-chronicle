@@ -253,6 +253,8 @@ const causticLoaded = ref(true);
 const interactiveReady = ref(false);
 const enterBtnRef = ref(null);
 let enterLock = false;
+let mouseRafId = null;
+let lastMouseEvent = { clientX: 0, clientY: 0 };
 
 const { init: initAudio } = useAudio();
 const { shouldUseVideo } = useVideoBackground();
@@ -280,10 +282,16 @@ function colNodeStyle(i, side) {
 }
 
 function onMouseMove(e) {
-  parallax.value = {
-    x: (e.clientX / window.innerWidth - 0.5) * 2,
-    y: (e.clientY / window.innerHeight - 0.5) * 2
-  };
+  // RAF 节流：避免每次 mousemove 都触发 98 个粒子的依赖更新
+  if (mouseRafId) return;
+  mouseRafId = requestAnimationFrame(() => {
+    mouseRafId = null;
+    parallax.value = {
+      x: (lastMouseEvent.clientX / window.innerWidth - 0.5) * 2,
+      y: (lastMouseEvent.clientY / window.innerHeight - 0.5) * 2
+    };
+  });
+  lastMouseEvent = e;
 }
 
 function enter() {
@@ -545,15 +553,16 @@ let readyTimer = null;
 onMounted(() => {
   initParticles();
   setupVideoObserver();
-  // 等入场动画完成后（2.5s 有 title 动画，+ 按钮浮动动画延迟 0.4s）再启用交互，
-  // 避免 Playwright/浏览器在元素还在动画时计算 box model 失败
+  // 等入场动画完成后（2.5s title 动画，+ 按钮浮动延迟 0.4s）再启用交互，
+  // 缩短到 2.2 秒（从 3.2s），让用户更快可以点击
   nextTick(() => {
-    readyTimer = setTimeout(() => { interactiveReady.value = true; }, 3200);
+    readyTimer = setTimeout(() => { interactiveReady.value = true; }, 2200);
   });
 });
 
 onUnmounted(() => {
   if (readyTimer) clearTimeout(readyTimer);
+  if (mouseRafId) cancelAnimationFrame(mouseRafId);
   if (particleRaf) cancelAnimationFrame(particleRaf);
   if (resizeHandler) window.removeEventListener('resize', resizeHandler);
   if (videoObserver) videoObserver.disconnect();
@@ -1506,9 +1515,8 @@ onUnmounted(() => {
   .gate-crystal-wrap { width: min(80px, 20vw); height: min(80px, 20vw); }
   .enter-core { padding: 12px 40px; border-radius: 24px; }
   .enter-text { font-size: 13px; letter-spacing: 2px; }
-  .corner-hud { font-size: 8px; letter-spacing: 1px; gap: 6px; }
-  .hud-line { width: 20px; }
-  .hud-emoji { font-size: 8px; }
+  /* 移动端隐藏装饰性 HUD，减少 DOM 占用 */
+  .corner-hud { display: none; }
   .brand-sub { font-size: 11px; letter-spacing: 2px; }
   .char-sparkle { font-size: 8px; top: -6px; right: -8px; }
 }
