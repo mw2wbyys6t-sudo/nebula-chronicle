@@ -1,0 +1,9 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Specific binary files
+*.jpg binary
+*.png binary
+*.mp4 binary
+*.otf binary
+*.zip binary
