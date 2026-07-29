@@ -3,23 +3,56 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AnimeVerse · AI 沉浸式动漫宇宙</title>
+  <meta name="theme-color" content="#0a0515">
+  <meta name="description" content="星云编年史 · 手势次元 — 沉浸式手势交互动漫宇宙">
+  <title>星云编年史 · Nebula Chronicle</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <!-- Google Fonts 异步加载，避免阻塞首屏；加载失败时由 CSS 本地字体栈兜底 -->
+  <!-- Google Fonts 异步加载；preload 样式表 + onload 切换，失败时由 CSS 本地字体栈兜底 -->
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&family=Orbitron:wght@400;700;900&family=ZCOOL+XiaoWei&display=swap" onload="this.rel='stylesheet'">
   <noscript>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&family=Orbitron:wght@400;700;900&family=ZCOOL+XiaoWei&display=swap">
   </noscript>
-  <link rel="preload" as="video" type="video/mp4" href="images/generated/nebula-trailer-v3-b.mp4">
+  <!-- 视频预加载已移除：v3-b.mp4(5.4MB) 改由 LoadingPhase 按需加载，避免阻塞首屏渲染。 -->
   <style>
     /* 字体加载失败时立即使用系统字体兜底，避免文字空白 */
     html { font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    /* 首屏极简背景：在 JS / CSS 资源加载完成前先呈现深紫色，避免白屏 */
+    html, body { margin: 0; padding: 0; height: 100%; background: #0a0515; overflow: hidden; }
+    #app { min-height: 100vh; }
+    /* 首屏加载前的极简占位（CSS-only，无需 JS）*/
+    .boot-curtain {
+      position: fixed; inset: 0; z-index: 99999;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 50% 45%, #1a0a2e 0%, #0a0515 70%);
+      color: #ff9ec4; font-family: 'Noto Sans SC', sans-serif; letter-spacing: 4px;
+      transition: opacity 0.5s ease;
+    }
+    .boot-curtain.gone { opacity: 0; pointer-events: none; }
+    .boot-spinner {
+      width: 40px; height: 40px; border-radius: 50%;
+      border: 2px solid rgba(255,158,196,0.2);
+      border-top-color: #ff9ec4;
+      animation: bootspin 1s linear infinite;
+      margin-right: 14px;
+      box-shadow: 0 0 16px rgba(255,158,196,0.4);
+    }
+    @keyframes bootspin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
   <div id="app"></div>
+  <div class="boot-curtain" id="boot-curtain"><div class="boot-spinner"></div><span>NEBULA CHRONICLE</span></div>
   <script type="module" src="/src/main.js"></script>
+  <script>
+    // Vue 挂载后移除首屏幕布
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const c = document.getElementById('boot-curtain');
+        if (c) { c.classList.add('gone'); setTimeout(() => c.remove(), 600); }
+      }, 300);
+    });
+  </script>
 </body>
 </html>
