@@ -7,13 +7,37 @@
   <meta name="description" content="星云编年史 · Nebula Chronicle — 沉浸式手势交互动漫宇宙，穿越 60 年二次元历史">
   <title>星云编年史 · Nebula Chronicle</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <!-- Google Fonts 异步加载 -->
+  <!-- Google Fonts 异步加载（带超时兜底，国内网络环境友好） -->
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&family=Orbitron:wght@400;700;900&family=ZCOOL+XiaoWei&display=swap" onload="this.rel='stylesheet'">
+  <link id="nc-gfonts-link" rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&family=Orbitron:wght@400;700;900&family=ZCOOL+XiaoWei&display=swap">
   <noscript>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&family=Orbitron:wght@400;700;900&family=ZCOOL+XiaoWei&display=swap">
   </noscript>
+  <script>
+    // Google Fonts 加载逻辑：3秒超时则放弃，直接用本地/系统字体
+    (function() {
+      var link = document.getElementById('nc-gfonts-link');
+      if (!link) return;
+      var loaded = false;
+      var timeout = setTimeout(function() {
+        if (!loaded) {
+          console.warn('[Google Fonts] 加载超时（>3s），使用本地/系统字体');
+          try { link.removeAttribute('as'); link.removeAttribute('rel'); } catch(e) {}
+        }
+      }, 3000);
+      link.addEventListener('load', function() {
+        loaded = true;
+        clearTimeout(timeout);
+        link.rel = 'stylesheet';
+      });
+      link.addEventListener('error', function() {
+        loaded = true;
+        clearTimeout(timeout);
+        console.warn('[Google Fonts] 加载失败，使用本地/系统字体');
+      });
+    })();
+  </script>
   <style>
     html { font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; }
     html, body { margin: 0; padding: 0; height: 100%; background: #060310; overflow: hidden; }
@@ -55,12 +79,30 @@
   </div>
   <script type="module" src="/src/main.js" fetchpriority="high"></script>
   <script>
+    // 双重保障：window.load 或 Vue挂载后移除 curtain
+    // 1. window.load 触发（兜底）
     window.addEventListener('load', () => {
-      setTimeout(() => {
-        const c = document.getElementById('boot-curtain');
-        if (c) { c.classList.add('gone'); setTimeout(() => c.remove(), 600); }
-      }, 300);
+      window.__ncCurtainArmed = true;
+      setTimeout(() => window.__ncRemoveCurtain && window.__ncRemoveCurtain(), 300);
     });
+
+    // 2. 超时兜底：8秒后无论如何都移除 curtain，避免白屏
+    setTimeout(() => {
+      const c = document.getElementById('boot-curtain');
+      if (c && !c.classList.contains('gone')) {
+        console.warn('[boot-curtain] 超时强制移除（超过8秒）');
+        window.__ncRemoveCurtain && window.__ncRemoveCurtain();
+      }
+    }, 8000);
+
+    // 导出 curtain 移除函数给 Vue main.js 调用
+    window.__ncRemoveCurtain = function() {
+      const c = document.getElementById('boot-curtain');
+      if (c && !c.classList.contains('gone')) {
+        c.classList.add('gone');
+        setTimeout(() => { try { c.remove(); } catch(e) {} }, 600);
+      }
+    };
   </script>
 </body>
 </html>

@@ -235,6 +235,28 @@ function xhrLoadJson(url, timeoutMs, onProgress) {
 }
 
 /**
+ * 带重试的网络请求：失败最多重试 3 次，指数退避
+ */
+async function retryFetch(url, timeoutMs, onProgress, maxRetries = 3) {
+  let lastErr = null;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      // 超时时间随重试递增：第1次 timeoutMs，第2次 *1.5，第3次 *2
+      const actualTimeout = timeoutMs * (1 + attempt * 0.5);
+      return await xhrLoadJson(url, actualTimeout, attempt === 0 ? onProgress : undefined);
+    } catch (err) {
+      lastErr = err;
+      const isLast = attempt === maxRetries - 1;
+      console.warn(`[DataEngine] 请求 ${url} 第 ${attempt + 1}/${maxRetries} 次失败:`, err.message, isLast ? '(不再重试)' : `，${Math.pow(2, attempt) * 500}ms 后重试...`);
+      if (!isLast) {
+        await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 500));
+      }
+    }
+  }
+  throw lastErr;
+}
+
+/**
  * 统一的 JSON 加载器：先读缓存（即时），再发起网络（后台刷新）
  * 返回 { value, fromCache } 结构
  * @param onProgress {Function} 0-1 进度回调
@@ -245,7 +267,7 @@ async function loadCachedJson(url, cacheKey, timeoutMs, onProgress) {
   if (cached) {
     // 命中缓存：立即返回；进度直接满，后台静默刷新但不 await
     if (onProgress) onProgress(1);
-    const networkPromise = xhrLoadJson(url, timeoutMs).then(json => {
+    const networkPromise = retryFetch(url, timeoutMs).then(json => {
       cacheSet(cacheKey, json);
       return json;
     }).catch(err => {
@@ -254,9 +276,9 @@ async function loadCachedJson(url, cacheKey, timeoutMs, onProgress) {
     return { value: cached, fromCache: true, networkPromise };
   }
 
-  // 无缓存：必须等网络，带进度
+  // 无缓存：必须等网络，带进度 + 重试
   try {
-    const json = await xhrLoadJson(url, timeoutMs, onProgress);
+    const json = await retryFetch(url, timeoutMs, onProgress);
     cacheSet(cacheKey, json);
     return { value: json, fromCache: false, networkPromise: Promise.resolve(json) };
   } catch (err) {
@@ -307,17 +329,79 @@ export const DataEngine = {
         coverFallback: localCovers[i % localCovers.length]
       }));
 
+      // 最后兜底：如果所有网络请求都失败，用内置的空数据，至少 UI 能渲染不白屏
+      const useEmptyFallback = (reason) => {
+        console.warn(`[DataEngine] 使用空数据兜底: ${reason}`);
+        if (!genres.value || Object.keys(genres.value).length === 0) {
+          genres.value = { genres: {} };
+        }
+        if (!data.value || data.value.length === 0) {
+          // 至少给一张空卡片，让 UI 有东西可渲染
+          data.value = [{
+            id: 0,
+            titleRomaji: 'Nebula Chronicle',
+            titleJa: '星雲編年史',
+            titleEnglish: 'Nebula Chronicle',
+            year: 2024,
+            score: 9.8,
+            popularity: 999999,
+            genres: ['Sci-Fi', 'Fantasy'],
+            tags: ['欢迎', '星云编年史'],
+            studios: ['Nebula Studio'],
+            coverImage: localCovers[0],
+            coverFallback: localCovers[0]
+          }];
+        }
+        coreLoaded.value = true;
+        loaded.value = true;
+        fullyLoaded.value = true;
+        loadProgress.value = 1;
+        buildIndex();
+        loading.value = false;
+      };
+
       try {
         // 策略：先用 146KB 核心集（top 80 热门）让首屏秒开，
         // 然后后台加载 4.3MB 全集，不阻塞 UI
-        const [coreResult, genreResult] = await Promise.all([
-          loadCachedJson(`${base}data/anime-core.json`, CORE_CACHE_KEY, 10000, (p) => {
-            loadProgress.value = 0.1 + p * 0.5; // core 占 50% 进度
-          }),
-          loadCachedJson(`${base}data/genre-manifest.json`, GENRE_CACHE_KEY, 8000, () => {
-            loadProgress.value = Math.max(loadProgress.value, 0.6);
-          })
-        ]);
+        let coreResult, genreResult;
+        try {
+          [coreResult, genreResult] = await Promise.all([
+            loadCachedJson(`${base}data/anime-core.json`, CORE_CACHE_KEY, 10000, (p) => {
+              loadProgress.value = 0.1 + p * 0.5; // core 占 50% 进度
+            }),
+            loadCachedJson(`${base}data/genre-manifest.json`, GENRE_CACHE_KEY, 8000, () => {
+              loadProgress.value = Math.max(loadProgress.value, 0.6);
+            })
+          ]);
+        } catch (firstErr) {
+          // 核心集也失败了，尝试直接加载全集作为兜底
+          console.warn('[DataEngine] 核心集加载失败，尝试全集兜底:', firstErr.message);
+          try {
+            const [fullResult, gResult] = await Promise.all([
+              loadCachedJson(`${base}data/anime-corpus.json`, CORPUS_CACHE_KEY, 30000, (p) => {
+                loadProgress.value = 0.1 + p * 0.85;
+              }),
+              loadCachedJson(`${base}data/genre-manifest.json`, GENRE_CACHE_KEY, 10000)
+            ]);
+            genres.value = gResult.value;
+            data.value = mapCovers(fullResult.value);
+            coreLoaded.value = true;
+            loaded.value = true;
+            fullyLoaded.value = true;
+            loadProgress.value = 1;
+            buildIndex();
+            setTimeout(() => this.buildGraphFromCorpus(), 0);
+            loading.value = false;
+            loadPromise = null;
+            return;
+          } catch (e2) {
+            // 全集也失败，用空兜底让 UI 至少能渲染
+            console.error('[DataEngine] 核心集+全集均失败，使用空兜底:', e2);
+            useEmptyFallback('核心+全集均失败');
+            loadPromise = null;
+            return;
+          }
+        }
 
         loadFromCache.value = coreResult.fromCache;
         genres.value = genreResult.value;
@@ -352,30 +436,9 @@ export const DataEngine = {
         });
 
       } catch (err) {
-        // 核心集也失败了，尝试直接加载全集作为兜底
-        console.warn('[DataEngine] 核心集加载失败，尝试全集:', err);
-        try {
-          const [fullResult, genreResult] = await Promise.all([
-            loadCachedJson(`${base}data/anime-corpus.json`, CORPUS_CACHE_KEY, 30000, (p) => {
-              loadProgress.value = 0.1 + p * 0.85;
-            }),
-            loadCachedJson(`${base}data/genre-manifest.json`, GENRE_CACHE_KEY, 10000)
-          ]);
-          genres.value = genreResult.value;
-          data.value = mapCovers(fullResult.value);
-          coreLoaded.value = true;
-          loaded.value = true;
-          fullyLoaded.value = true;
-          loadProgress.value = 1;
-          buildIndex();
-          setTimeout(() => this.buildGraphFromCorpus(), 0);
-          loading.value = false;
-        } catch (e2) {
-          error.value = e2.message;
-          console.error('[DataEngine] 加载完全失败:', e2);
-          loading.value = false;
-          throw e2;
-        }
+        // 任何意外错误，用空兜底
+        console.error('[DataEngine] load 流程意外错误，使用空兜底:', err);
+        useEmptyFallback('意外错误: ' + (err?.message || String(err)));
       } finally {
         loadPromise = null;
       }

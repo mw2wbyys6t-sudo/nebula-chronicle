@@ -193,9 +193,10 @@
       </div>
 
       <button
+        ref="enterBtnRef"
         class="enter-btn"
-        :disabled="isTransitioning"
-        :class="{ transitioning: isTransitioning }"
+        :disabled="isTransitioning || !interactiveReady"
+        :class="{ transitioning: isTransitioning, ready: interactiveReady }"
         @click="enter"
       >
         <span class="enter-core">
@@ -235,7 +236,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { useAudio } from '../composables/useAudio.js';
 import { useVideoBackground } from '../composables/useVideoBackground.js';
 
@@ -248,6 +249,10 @@ const parallax = ref({ x: 0, y: 0 });
 const videoLoaded = ref(null);
 const bgVideo = ref(null);
 const causticLoaded = ref(true);
+// 按钮交互就绪标志：等视图动画全部完成后才允许点击，防止 box model 计算异常
+const interactiveReady = ref(false);
+const enterBtnRef = ref(null);
+let enterLock = false;
 
 const { init: initAudio } = useAudio();
 const { shouldUseVideo } = useVideoBackground();
@@ -282,10 +287,16 @@ function onMouseMove(e) {
 }
 
 function enter() {
-  if (isTransitioning.value) return;
+  if (enterLock || isTransitioning.value) return;
+  enterLock = true;
   isTransitioning.value = true;
-  initAudio().catch(() => {});
-  setTimeout(() => emit('start'), 900);
+  try {
+    initAudio().catch(() => {});
+  } catch (e) {}
+  setTimeout(() => {
+    emit('start');
+    setTimeout(() => { enterLock = false; isTransitioning.value = false; }, 2000);
+  }, 900);
 }
 
 const particleCanvas = ref(null);
@@ -529,12 +540,20 @@ function setupVideoObserver() {
   videoObserver.observe(bgVideo.value);
 }
 
+let readyTimer = null;
+
 onMounted(() => {
   initParticles();
   setupVideoObserver();
+  // 等入场动画完成后（2.5s 有 title 动画，+ 按钮浮动动画延迟 0.4s）再启用交互，
+  // 避免 Playwright/浏览器在元素还在动画时计算 box model 失败
+  nextTick(() => {
+    readyTimer = setTimeout(() => { interactiveReady.value = true; }, 3200);
+  });
 });
 
 onUnmounted(() => {
+  if (readyTimer) clearTimeout(readyTimer);
   if (particleRaf) cancelAnimationFrame(particleRaf);
   if (resizeHandler) window.removeEventListener('resize', resizeHandler);
   if (videoObserver) videoObserver.disconnect();
@@ -1211,6 +1230,29 @@ onUnmounted(() => {
   opacity: 0;
   animation: fade-in-up 0.8s ease-out 2s forwards;
   z-index: 15;
+  /* 明确尺寸 + will-change，减少布局抖动，避免 "Could not compute box model" */
+  width: 260px;
+  min-height: 80px;
+  will-change: transform, opacity;
+  contain: layout style paint;
+}
+
+/* 按钮未就绪时降低透明度，提示不可点击 */
+.enter-btn:not(.ready) {
+  filter: grayscale(0.4);
+}
+.enter-btn:not(.ready):not(:disabled) {
+  pointer-events: none;
+}
+.enter-btn:disabled {
+  cursor: wait;
+}
+.enter-btn.ready .enter-text {
+  animation: ready-pulse 2s ease-in-out infinite;
+}
+@keyframes ready-pulse {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(255, 180, 210, 0.6)); }
+  50% { filter: drop-shadow(0 0 20px rgba(255, 200, 230, 1)); }
 }
 
 .enter-core {
