@@ -10,7 +10,7 @@ import urllib.error
 API_KEY = "mdlx-hVCG1tqofQFaCDys6NnleNuxbTeQN1282OQIaW5K4Nekb6Qk"
 BASE_URL = "https://api.modellix.ai"
 MODEL = "bytedance/seedance-2.0-i2v"
-RAW_PREFIX = "https://raw.githubusercontent.com/mw2wbyys6t-sudo/wonderful-screen/trae/solo-agent-ePa5us/images/generated/video-refs"
+RAW_PREFIX = "https://raw.githubusercontent.com/mw2wbyys6t-sudo/nebula-chronicle/trae/solo-agent-ePa5us/images/generated/video-refs"
 OUT_DIR = "/workspace/images/generated"
 
 VIDEOS = [

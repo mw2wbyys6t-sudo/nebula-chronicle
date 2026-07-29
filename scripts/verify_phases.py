@@ -3,7 +3,7 @@
 from playwright.sync_api import sync_playwright
 import sys
 
-URL = 'http://localhost:4174/wonderful-screen/'
+URL = 'http://localhost:4174/nebula-chronicle/'
 
 def main():
     errors = []
