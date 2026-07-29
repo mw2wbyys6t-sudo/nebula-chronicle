@@ -7,11 +7,11 @@ import time
 import urllib.request
 import urllib.error
 
-API_KEY = "mdlx-hVCG1tqofQFaCDys6NnleNuxbTeQN1282OQIaW5K4Nekb6Qk"
+API_KEY = os.environ.get("MODELLIX_API_KEY", "")
 BASE_URL = "https://api.modellix.ai"
 MODEL = "bytedance/seedance-2.0-i2v"
-RAW_PREFIX = "https://raw.githubusercontent.com/mw2wbyys6t-sudo/nebula-chronicle/trae/solo-agent-ePa5us/images/generated/video-refs"
-OUT_DIR = "/workspace/images/generated"
+RAW_PREFIX = "https://raw.githubusercontent.com/mw2wbyys6t-sudo/nebula-chronicle/main/public/images/generated/video-refs"
+OUT_DIR = os.environ.get("VIDEO_OUTPUT_DIR", "./public/images/generated")
 
 VIDEOS = [
     {

@@ -2,17 +2,48 @@
 js/llm-config.js
 .env
 .env.local
+.env.*.local
 
 # 依赖
 node_modules/
 
 # 构建产物
 dist/
+dist-ssr/
+*.local
 
 # 测试产物
 /test-results/
 /screenshots/
 
+# 临时截图（根目录及 scripts 目录）
+/*.png
+/*.jpg
+/*.jpeg
+/scripts/*.png
+/scripts/*.jpg
+/scripts/*.jpeg
+
+# 日志与压缩包
+*.log
+*.zip
+runlogs/
+
 # 编辑器
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 临时任务
+.video-tasks.json
+.superpowers/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
