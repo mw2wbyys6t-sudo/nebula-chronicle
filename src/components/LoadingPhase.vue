@@ -124,12 +124,12 @@ const loadingVideo = ref(null);
 
 const { shouldUseVideo } = useVideoBackground();
 
-// 设备分级：移动端减少粒子数量
+// 设备分级：移动端适当减少粒子数量，但保留大部分视觉效果
 const isMobile = typeof navigator !== 'undefined' && (
   /Mobi|Android|iPhone/i.test(navigator.userAgent) ||
   (navigator.hardwareConcurrency || 4) <= 4
 );
-const particleScale = isMobile ? 0.5 : 1;
+const particleScale = isMobile ? 0.75 : 1;
 
 function onVideoLoaded() {
   videoLoaded.value = true;

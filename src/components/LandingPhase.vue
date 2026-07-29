@@ -553,10 +553,10 @@ let readyTimer = null;
 onMounted(() => {
   initParticles();
   setupVideoObserver();
-  // 等入场动画完成后（2.5s title 动画，+ 按钮浮动延迟 0.4s）再启用交互，
-  // 缩短到 2.2 秒（从 3.2s），让用户更快可以点击
+  // 等入场动画基本完成后再启用交互（标题动画 2.5s + 按钮浮动 0.4s）
+  // 2.6s 比原来的 3.2s 快了 600ms，但仍有足够动画展示时间
   nextTick(() => {
-    readyTimer = setTimeout(() => { interactiveReady.value = true; }, 2200);
+    readyTimer = setTimeout(() => { interactiveReady.value = true; }, 2600);
   });
 });
 
@@ -1515,8 +1515,16 @@ onUnmounted(() => {
   .gate-crystal-wrap { width: min(80px, 20vw); height: min(80px, 20vw); }
   .enter-core { padding: 12px 40px; border-radius: 24px; }
   .enter-text { font-size: 13px; letter-spacing: 2px; }
-  /* 移动端隐藏装饰性 HUD，减少 DOM 占用 */
-  .corner-hud { display: none; }
+  /* 移动端简化 HUD：缩小字号、淡化透明度，保留氛围但不喧宾夺主 */
+  .corner-hud {
+    font-size: 7px;
+    letter-spacing: 1px;
+    gap: 4px;
+    opacity: 0.55;
+  }
+  .hud-line { width: 14px; }
+  .hud-emoji { display: none; } /* 仅隐藏表情，文字保留 */
+  .hud-content span:last-child { display: none; } /* 隐藏第二行注释 */
   .brand-sub { font-size: 11px; letter-spacing: 2px; }
   .char-sparkle { font-size: 8px; top: -6px; right: -8px; }
 }

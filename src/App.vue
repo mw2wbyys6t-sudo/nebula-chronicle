@@ -137,10 +137,10 @@ onUnmounted(() => {
   transition: opacity 0.5s ease;
 }
 
-/* Universe 相位暂停 film grain，节省 CPU */
+/* Universe 相位降低 film grain 强度（不暂停，保留宇宙尘埃氛围） */
 .cg-film-grain.grain-paused {
-  animation-play-state: paused;
-  opacity: 0.01;
+  animation-duration: 0.8s; /* 放慢速度 */
+  opacity: 0.015; /* 降低透明度而非完全移除 */
 }
 
 @keyframes grainShift {
@@ -169,22 +169,22 @@ onUnmounted(() => {
   100% { opacity: 0.7; transform: translate(-5px, 8px); }
 }
 
-/* 相位切换：crossfade 替代 out-in，重叠过渡更流畅 */
+/* 相位切换：crossfade 重叠过渡更流畅，但保留足够仪式感时长 */
 .phase-enter-active,
 .phase-leave-active {
-  transition: opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1), transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), filter 0.45s ease-out;
+  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), filter 0.5s ease-out;
 }
 
 .phase-enter-from {
   opacity: 0;
-  transform: scale(1.03);
-  filter: blur(8px) saturate(1.4) brightness(1.3);
+  transform: scale(1.04);
+  filter: blur(9px) saturate(1.5) brightness(1.35);
 }
 
 .phase-leave-to {
   opacity: 0;
   transform: scale(0.98);
-  filter: blur(4px) brightness(0.8);
+  filter: blur(5px) brightness(0.75);
 }
 
 /* UniversePhase 加载占位 */

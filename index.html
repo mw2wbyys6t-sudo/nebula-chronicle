@@ -121,7 +121,7 @@
     // 优化的 curtain 移除逻辑：多重保障，最短路径
     // 1. Vue 挂载完成后主动调用（main.js 中触发）
     // 2. window.load 兜底
-    // 3. 超时兜底：5秒后无论如何都移除（从8秒缩短到5秒）
+    // 3. 超时兜底：7秒后无论如何都移除（原8s，略快但仍保留充裕时间）
     window.addEventListener('load', () => {
       window.__ncCurtainArmed = true;
       setTimeout(() => window.__ncRemoveCurtain && window.__ncRemoveCurtain(), 200);
@@ -130,10 +130,10 @@
     setTimeout(() => {
       const c = document.getElementById('boot-curtain');
       if (c && !c.classList.contains('gone')) {
-        console.warn('[boot-curtain] 超时强制移除（超过5秒）');
+        console.warn('[boot-curtain] 超时强制移除（超过7秒）');
         window.__ncRemoveCurtain && window.__ncRemoveCurtain();
       }
-    }, 5000);
+    }, 7000);
 
     window.__ncRemoveCurtain = function() {
       const c = document.getElementById('boot-curtain');
