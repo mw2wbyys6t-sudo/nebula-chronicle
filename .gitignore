@@ -43,6 +43,9 @@ Thumbs.db
 .video-tasks.json
 .superpowers/
 
+# GIF 优化中间产物
+docs/gifs/optimized/
+
 # Python 缓存
 __pycache__/
 *.pyc
