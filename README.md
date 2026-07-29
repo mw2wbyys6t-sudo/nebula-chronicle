@@ -189,9 +189,10 @@
 
 ### 3. 知识图谱引擎
 
-- 基于 `knowledge-graph.json`（6.1MB）的动漫关系图谱
+- 从 `anime-corpus.json` 内嵌的 `relations` 字段纯内存构建关系图谱（`buildGraphFromCorpus`，<10ms）
 - 支持关系查询、路径发现、智能推荐
 - LRU 缓存优化，KnowledgeEngine 引擎驱动
+- 无需额外下载 6MB 图谱文件，首屏加载量大幅减少
 
 ### 4. LLM 多轮语音助手
 
@@ -351,7 +352,7 @@ nebula-chronicle/
 │   ├── App.vue                       # 根组件（含错误边界）
 │   └── main.js                       # 应用入口
 ├── public/                           # 静态资源
-│   ├── data/                         # 4 个数据文件（详见下方数据说明）
+│   ├── data/                         # 3 个数据文件（详见下方数据说明）
 │   ├── images/                       # 图片资源
 │   │   ├── {0-41}.jpg                # 动漫作品封面（42 张）
 │   │   ├── login/                    # 8 位角色登录海报
@@ -484,9 +485,10 @@ AI 语音助手需要配置 LLM 接口才能使用。不配置时，语音识别
 | 数据文件 | 大小 | 用途 |
 |---------|------|------|
 | `anime-core.json` | 146KB | 动漫核心条目（标题、类型、评分、年份等） |
-| `anime-corpus.json` | 4.3MB | 完整动漫语料库（用于 LLM 上下文增强） |
+| `anime-corpus.json` | 4.3MB | 完整动漫语料库（含内嵌 relations，用于 LLM 上下文增强与知识图谱构建） |
 | `genre-manifest.json` | 2KB | 19 种类型清单及颜色映射 |
-| `knowledge-graph.json` | 6.1MB | 动漫关系图谱（节点 + 边，支持路径查询） |
+
+> **优化说明**：原 `knowledge-graph.json`（6.1MB）已移除，知识图谱改由 `DataEngine.buildGraphFromCorpus()` 从 corpus 内嵌的 relations 字段纯内存构建，首屏加载减少 6MB。
 
 ---
 
@@ -557,6 +559,45 @@ AI 语音助手需要配置 LLM 接口才能使用。不配置时，语音识别
 
 ---
 
+## 性能优化记录
+
+### 首屏加载优化
+
+| 优化项 | 说明 |
+|--------|------|
+| **boot-curtain 三重保障** | `window.load` + Vue 挂载后 `nextTick` + 7s 超时兜底，确保加载遮罩永不卡死 |
+| **视频延迟加载** | LoadingPhase 进度 ≥ 80% 后才请求视频 src，避免抢占核心数据带宽 |
+| **知识图谱内存化** | 移除 6MB `knowledge-graph.json`，改由 `buildGraphFromCorpus` 从 corpus 内嵌 relations 纯内存构建（<10ms） |
+| **Google Fonts 超时降级** | 3 秒超时后放弃远程字体，回退本地 `NotoSansCJKsc-Bold.otf` |
+
+### 数据可靠性
+
+| 优化项 | 说明 |
+|--------|------|
+| **指数退避重试** | `retryFetch` 最多 3 次重试，间隔 500ms → 1s → 2s，避免请求风暴 |
+| **空数据兜底** | 核心集 + 全集均失败时返回 1 条欢迎数据，保证 UI 不白屏 |
+| **localStorage 缓存** | 命中缓存立即返回，后台静默刷新 |
+
+### 渲染与交互优化
+
+| 优化项 | 说明 |
+|--------|------|
+| **粒子设备分级** | 移动端粒子数 ×0.75，桌面端全量，Canvas 渲染平滑 |
+| **RAF 节流** | mousemove 事件通过 `requestAnimationFrame` 节流，避免每帧触发 98 个粒子更新 |
+| **相位 crossfade** | `Transition` 去掉 `mode="out-in"`，四相位绝对定位重叠，opacity 交叉溶解无黑屏 |
+| **film grain 降级** | Universe 阶段降低 grain 透明度至 0.015（不暂停），保留宇宙尘埃氛围 |
+| **按钮交互防抖** | LandingPhase 2.6s 后启用交互，固定按钮尺寸防止 box model 计算异常 |
+
+### 构建优化
+
+| 优化项 | 说明 |
+|--------|------|
+| **Terser 压缩** | 移除 `console.log/info/debug`，保留 `warn/error` 用于线上诊断 |
+| **target es2020** | 可选链 / 空值合并不转译，代码更小，2020 年后浏览器全覆盖 |
+| **代码分割** | Three.js / Vue / 业务代码分离打包，UniversePhase 异步按需加载 |
+
+---
+
 ## 开发路线图
 
 ### 已完成
@@ -566,7 +607,7 @@ AI 语音助手需要配置 LLM 接口才能使用。不配置时，语音识别
 - [x] 8 位角色登录页（Liquid Glass 风格）
 - [x] LLM 语音助手（命令 + 闲聊双模式）
 - [x] MediaPipe 手势识别控制
-- [x] 知识图谱引擎（6.1MB 关系数据）
+- [x] 知识图谱引擎（内存构建，无需下载 6MB 图谱文件）
 - [x] AI 生成宣传视频（3 部星云主题）
 - [x] 全局错误边界与 UI 音效
 - [x] GitHub Pages CI/CD 自动部署
