@@ -2,7 +2,7 @@
   <section class="phase-loading" :class="{ 'is-complete': isComplete }">
     <canvas ref="starfield" class="starfield"></canvas>
 
-    <div v-if="shouldUseVideo && videoLoaded !== false" class="energy-core-wrap">
+    <div v-if="shouldUseVideo && videoLoaded !== false && videoEnabled" class="energy-core-wrap">
       <video
         ref="loadingVideo"
         class="energy-core-video"
@@ -12,7 +12,6 @@
         loop
         playsinline
         :poster="baseUrl + 'images/generated/nebula-trailer-frame.jpg'"
-        :src="baseUrl + 'images/generated/nebula-trailer-v3-b.mp4'"
         @error="onVideoError"
         @loadeddata="onVideoLoaded"
       ></video>
@@ -80,8 +79,12 @@
     </svg>
 
     <div class="summoning-text">
-      <div class="summon-title">{{ tip }}</div>
-      <div class="summon-sub">{{ progressText }}</div>
+      <Transition name="tip-fade" mode="out-in">
+        <div :key="tip" class="summon-title">{{ tip }}</div>
+      </Transition>
+      <Transition name="tip-fade" mode="out-in">
+        <div :key="progressText" class="summon-sub">{{ progressText }}</div>
+      </Transition>
       <!-- 真实数据加载进度条 -->
       <div class="progress-track">
         <div class="progress-fill" :style="{ width: progress + '%' }">
@@ -90,6 +93,11 @@
         <span class="progress-pct">{{ progress }}%</span>
       </div>
     </div>
+
+    <!-- 跳过按钮：数据加载完成后可点击跳过仪式动画 -->
+    <button v-if="progress >= 100 && !isComplete" class="skip-btn" @click="skipAhead">
+      <span>跳过 ✧</span>
+    </button>
 
     <div class="burst-overlay"></div>
     <div class="bokeh-layer"></div>
@@ -111,9 +119,17 @@ const tip = ref('正在召唤守护星座…');
 const progressText = ref('');
 const isComplete = ref(false);
 const videoLoaded = ref(null);
+const videoEnabled = ref(false); // 延迟启用视频，避免抢占数据加载带宽
 const loadingVideo = ref(null);
 
 const { shouldUseVideo } = useVideoBackground();
+
+// 设备分级：移动端适当减少粒子数量，但保留大部分视觉效果
+const isMobile = typeof navigator !== 'undefined' && (
+  /Mobi|Android|iPhone/i.test(navigator.userAgent) ||
+  (navigator.hardwareConcurrency || 4) <= 4
+);
+const particleScale = isMobile ? 0.75 : 1;
 
 function onVideoLoaded() {
   videoLoaded.value = true;
@@ -122,6 +138,17 @@ function onVideoLoaded() {
 function onVideoError(e) {
   console.warn('[LoadingPhase] 视频加载失败，降级:', e);
   videoLoaded.value = false;
+}
+
+// 延迟设置视频 src：等核心数据加载到 80% 后再请求视频，避免抢占带宽
+function enableVideo() {
+  if (!shouldUseVideo.value || videoEnabled.value) return;
+  videoEnabled.value = true;
+  requestAnimationFrame(() => {
+    if (loadingVideo.value) {
+      loadingVideo.value.src = baseUrl + 'images/generated/nebula-trailer-v3-b.mp4';
+    }
+  });
 }
 
 const tips = [
@@ -177,7 +204,12 @@ function initStarfield() {
 
   const sakuraColors = ['#ffb7d0', '#ff9ec4', '#ffc4e0', '#d4b8ff', '#c9b1ff', '#b8e0ff', '#ffd700', '#fff0f5'];
 
-  const petals = Array.from({ length: 60 }, () => ({
+  // 根据 device 分级调整粒子数
+  const petalCount = Math.round(60 * particleScale);
+  const sparkleCount = Math.round(120 * particleScale);
+  const bokehCount = Math.round(15 * particleScale);
+
+  const petals = Array.from({ length: petalCount }, () => ({
     x: Math.random() * width,
     y: Math.random() * height,
     size: Math.random() * 6 + 4,
@@ -191,7 +223,7 @@ function initStarfield() {
     type: 'petal'
   }));
 
-  const sparkles = Array.from({ length: 120 }, () => ({
+  const sparkles = Array.from({ length: sparkleCount }, () => ({
     x: Math.random() * width,
     y: Math.random() * height,
     size: Math.random() * 2.5 + 0.5,
@@ -203,7 +235,7 @@ function initStarfield() {
     spikes: Math.random() > 0.5 ? 4 : 5
   }));
 
-  const bokehs = Array.from({ length: 15 }, () => ({
+  const bokehs = Array.from({ length: bokehCount }, () => ({
     x: Math.random() * width,
     y: Math.random() * height,
     size: Math.random() * 80 + 30,
@@ -244,17 +276,33 @@ function initStarfield() {
     ctx.restore();
   }
 
-  function drawHeart(x, y, s, color) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(s / 10, s / 10);
-    ctx.beginPath();
-    ctx.moveTo(0, 3);
-    ctx.bezierCurveTo(-8, -5, -8, -12, 0, -7);
-    ctx.bezierCurveTo(8, -12, 8, -5, 0, 3);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.restore();
+  // 预渲染 sparkle 到离屏 canvas，避免每帧 shadowBlur 开销
+  const sparkleCache = new Map();
+  function getSparkleSprite(color, size, spikes) {
+    const key = `${color}_${size.toFixed(1)}_${spikes}`;
+    if (sparkleCache.has(key)) return sparkleCache.get(key);
+    const off = document.createElement('canvas');
+    const ss = Math.max(size * 8, 16);
+    off.width = ss; off.height = ss;
+    const sctx = off.getContext('2d');
+    sctx.translate(ss / 2, ss / 2);
+    sctx.shadowColor = color;
+    sctx.shadowBlur = size * 3;
+    sctx.fillStyle = color;
+    sctx.beginPath();
+    for (let i = 0; i < spikes * 2; i++) {
+      const r = i % 2 === 0 ? size * 1.5 : size * 0.5;
+      const a = (i / (spikes * 2)) * Math.PI * 2 - Math.PI / 2;
+      const px = Math.cos(a) * r;
+      const py = Math.sin(a) * r;
+      if (i === 0) sctx.moveTo(px, py);
+      else sctx.lineTo(px, py);
+    }
+    sctx.closePath();
+    sctx.fill();
+    const sprite = { canvas: off, halfW: ss / 2, halfH: ss / 2 };
+    sparkleCache.set(key, sprite);
+    return sprite;
   }
 
   function resize() {
@@ -265,8 +313,11 @@ function initStarfield() {
   window.addEventListener('resize', resize);
 
   let time = 0;
-  function draw() {
-    time += 0.016;
+  let lastTime = performance.now();
+  function draw(now) {
+    const dt = Math.min((now - lastTime) / 16, 2); // 帧率补偿
+    lastTime = now;
+    time += 0.016 * dt;
     ctx.clearRect(0, 0, width, height);
 
     for (const b of bokehs) {
@@ -279,7 +330,7 @@ function initStarfield() {
       ctx.beginPath();
       ctx.arc(b.x, b.y, b.size * pulse, 0, Math.PI * 2);
       ctx.fill();
-      b.y += b.speedY;
+      b.y += b.speedY * dt;
       if (b.y < -b.size) { b.y = height + b.size; b.x = Math.random() * width; }
     }
 
@@ -287,49 +338,55 @@ function initStarfield() {
       const wobble = Math.sin(time * 2 + p.phase) * 1.5;
       ctx.globalAlpha = p.alpha * (0.7 + 0.3 * Math.sin(time + p.phase));
       drawPetal(p.x + wobble, p.y, p.size, p.rot + Math.sin(time + p.phase) * 0.3, p.color);
-      p.y += p.speedY;
-      p.x += p.speedX + Math.sin(time + p.phase) * 0.3;
-      p.rot += p.rotSpeed;
+      p.y += p.speedY * dt;
+      p.x += (p.speedX + Math.sin(time + p.phase) * 0.3) * dt;
+      p.rot += p.rotSpeed * dt;
       if (p.y > height + 20) { p.y = -20; p.x = Math.random() * width; }
       if (p.x < -20) p.x = width + 20;
       if (p.x > width + 20) p.x = -20;
     }
 
+    // 使用预渲染 sprite 替代每帧 shadowBlur，大幅降低 CPU 开销
     for (const s of sparkles) {
-      s.alpha += s.speed;
-      s.x += s.drift;
-      s.y += s.drift * 0.3;
+      s.alpha += s.speed * dt;
+      s.x += s.drift * dt;
+      s.y += s.drift * 0.3 * dt;
       if (s.x < -20) s.x = width + 20;
       if (s.x > width + 20) s.x = -20;
       const opacity = (Math.sin(s.alpha) + 1) / 2 * 0.8 + 0.1;
       ctx.globalAlpha = opacity;
-      ctx.shadowColor = s.color;
-      ctx.shadowBlur = s.size * 3;
-      if (Math.random() > 0.92) {
-        drawHeart(s.x, s.y, s.size * 2, s.color);
-      } else {
-        drawStar(s.x, s.y, s.size * 1.5, s.spikes, s.color);
-      }
-      ctx.shadowBlur = 0;
+      const sprite = getSparkleSprite(s.color, s.size, s.spikes);
+      ctx.drawImage(sprite.canvas, s.x - sprite.halfW, s.y - sprite.halfH);
     }
 
     ctx.globalAlpha = 1;
-    starRafId = requestAnimationFrame(draw);
+    if (!isComplete.value) {
+      starRafId = requestAnimationFrame(draw);
+    }
   }
-  draw();
+  starRafId = requestAnimationFrame(draw);
 }
 
 const AUTO_ADVANCE_DELAY = 2600;
 const COMPLETE_HOLD_DELAY = 1600;
 
+function skipAhead() {
+  if (isComplete.value) return;
+  isComplete.value = true;
+  if (starRafId) { cancelAnimationFrame(starRafId); starRafId = null; }
+  setTimeout(() => emit('done'), 600);
+}
+
 onMounted(async () => {
   initStarfield();
   updateTip();
 
-  // 监听真实加载进度，平滑映射到 0-85 区间（后面 15% 留给仪式感动效）
+  // 监听真实加载进度，平滑映射到 0-85 区间（后面 15% 留给仪式动效）
   const stopWatch = watch(() => DataEngine.loadProgress.value, (p) => {
     if (p > 0 && p < 1) {
       progress.value = Math.max(progress.value, Math.round(p * 85));
+      // 核心数据加载到 80% 后启用视频
+      if (p >= 0.8) enableVideo();
     }
   });
 
@@ -339,6 +396,9 @@ onMounted(async () => {
     const dataElapsed = Date.now() - dataStart;
     const fromCache = DataEngine.loadFromCache.value;
     const minLoadDelay = fromCache ? 400 : Math.max(0, 1200 - dataElapsed);
+
+    // 数据就绪后启用视频（如果尚未启用）
+    enableVideo();
 
     // 数据就绪，推进到仪式动效
     progress.value = 85;
@@ -352,6 +412,8 @@ onMounted(async () => {
 
     setTimeout(() => {
       isComplete.value = true;
+      // 完成后停止粒子动画，释放 CPU
+      if (starRafId) { cancelAnimationFrame(starRafId); starRafId = null; }
       setTimeout(() => emit('done'), COMPLETE_HOLD_DELAY);
     }, fromCache ? 1200 : AUTO_ADVANCE_DELAY);
   } catch (err) {
@@ -361,6 +423,7 @@ onMounted(async () => {
     progress.value = 100;
     setTimeout(() => {
       isComplete.value = true;
+      if (starRafId) { cancelAnimationFrame(starRafId); starRafId = null; }
       setTimeout(() => emit('done'), COMPLETE_HOLD_DELAY);
     }, 1800);
   } finally {
@@ -852,5 +915,48 @@ onUnmounted(() => {
   .rune-char { font-size: 11px; }
   .summon-title { font-size: 14px; letter-spacing: 2px; }
   .summon-sub { font-size: 10px; letter-spacing: 1px; }
+}
+
+/* 进度文案淡入淡出过渡 */
+.tip-fade-enter-active,
+.tip-fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.tip-fade-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.tip-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* 跳过按钮 */
+.skip-btn {
+  position: absolute;
+  bottom: 5%;
+  right: 5%;
+  z-index: 15;
+  padding: 8px 20px;
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  border-radius: 20px;
+  background: rgba(20, 10, 40, 0.6);
+  color: rgba(255, 215, 0, 0.9);
+  font-size: 12px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: all 0.25s ease;
+  animation: skipFadeIn 0.5s ease-out;
+}
+.skip-btn:hover {
+  background: rgba(255, 215, 0, 0.15);
+  border-color: rgba(255, 215, 0, 0.7);
+  box-shadow: 0 0 16px rgba(255, 215, 0, 0.3);
+  transform: translateY(-1px);
+}
+@keyframes skipFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

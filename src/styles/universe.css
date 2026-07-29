@@ -1,3 +1,12 @@
+/* 本地字体兜底，避免 Google Fonts 加载失败导致字体回退异常 */
+@font-face {
+  font-family: 'Noto Sans SC Local';
+  src: url('/fonts/NotoSansCJKsc-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --bg-deep: #0a0618;
   --bg-darker: #060310;
@@ -28,7 +37,8 @@ html, body, #app, #universe {
   overflow: hidden;
   background: var(--bg-darker);
   color: var(--text-primary);
-  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', 'WenQuanYi Micro Hei', sans-serif;
+  /* 优先本地字体，再 Google Fonts，再系统兜底 */
+  font-family: 'Noto Sans SC Local', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', 'WenQuanYi Micro Hei', sans-serif;
 }
 
 #universe {

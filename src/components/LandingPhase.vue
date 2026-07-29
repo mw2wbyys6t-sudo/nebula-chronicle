@@ -193,9 +193,10 @@
       </div>
 
       <button
+        ref="enterBtnRef"
         class="enter-btn"
-        :disabled="isTransitioning"
-        :class="{ transitioning: isTransitioning }"
+        :disabled="isTransitioning || !interactiveReady"
+        :class="{ transitioning: isTransitioning, ready: interactiveReady }"
         @click="enter"
       >
         <span class="enter-core">
@@ -235,7 +236,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { useAudio } from '../composables/useAudio.js';
 import { useVideoBackground } from '../composables/useVideoBackground.js';
 
@@ -248,6 +249,12 @@ const parallax = ref({ x: 0, y: 0 });
 const videoLoaded = ref(null);
 const bgVideo = ref(null);
 const causticLoaded = ref(true);
+// 按钮交互就绪标志：等视图动画全部完成后才允许点击，防止 box model 计算异常
+const interactiveReady = ref(false);
+const enterBtnRef = ref(null);
+let enterLock = false;
+let mouseRafId = null;
+let lastMouseEvent = { clientX: 0, clientY: 0 };
 
 const { init: initAudio } = useAudio();
 const { shouldUseVideo } = useVideoBackground();
@@ -275,17 +282,29 @@ function colNodeStyle(i, side) {
 }
 
 function onMouseMove(e) {
-  parallax.value = {
-    x: (e.clientX / window.innerWidth - 0.5) * 2,
-    y: (e.clientY / window.innerHeight - 0.5) * 2
-  };
+  // RAF 节流：避免每次 mousemove 都触发 98 个粒子的依赖更新
+  if (mouseRafId) return;
+  mouseRafId = requestAnimationFrame(() => {
+    mouseRafId = null;
+    parallax.value = {
+      x: (lastMouseEvent.clientX / window.innerWidth - 0.5) * 2,
+      y: (lastMouseEvent.clientY / window.innerHeight - 0.5) * 2
+    };
+  });
+  lastMouseEvent = e;
 }
 
 function enter() {
-  if (isTransitioning.value) return;
+  if (enterLock || isTransitioning.value) return;
+  enterLock = true;
   isTransitioning.value = true;
-  initAudio().catch(() => {});
-  setTimeout(() => emit('start'), 900);
+  try {
+    initAudio().catch(() => {});
+  } catch (e) {}
+  setTimeout(() => {
+    emit('start');
+    setTimeout(() => { enterLock = false; isTransitioning.value = false; }, 2000);
+  }, 900);
 }
 
 const particleCanvas = ref(null);
@@ -529,12 +548,21 @@ function setupVideoObserver() {
   videoObserver.observe(bgVideo.value);
 }
 
+let readyTimer = null;
+
 onMounted(() => {
   initParticles();
   setupVideoObserver();
+  // 等入场动画基本完成后再启用交互（标题动画 2.5s + 按钮浮动 0.4s）
+  // 2.6s 比原来的 3.2s 快了 600ms，但仍有足够动画展示时间
+  nextTick(() => {
+    readyTimer = setTimeout(() => { interactiveReady.value = true; }, 2600);
+  });
 });
 
 onUnmounted(() => {
+  if (readyTimer) clearTimeout(readyTimer);
+  if (mouseRafId) cancelAnimationFrame(mouseRafId);
   if (particleRaf) cancelAnimationFrame(particleRaf);
   if (resizeHandler) window.removeEventListener('resize', resizeHandler);
   if (videoObserver) videoObserver.disconnect();
@@ -1211,6 +1239,29 @@ onUnmounted(() => {
   opacity: 0;
   animation: fade-in-up 0.8s ease-out 2s forwards;
   z-index: 15;
+  /* 明确尺寸 + will-change，减少布局抖动，避免 "Could not compute box model" */
+  width: 260px;
+  min-height: 80px;
+  will-change: transform, opacity;
+  contain: layout style paint;
+}
+
+/* 按钮未就绪时降低透明度，提示不可点击 */
+.enter-btn:not(.ready) {
+  filter: grayscale(0.4);
+}
+.enter-btn:not(.ready):not(:disabled) {
+  pointer-events: none;
+}
+.enter-btn:disabled {
+  cursor: wait;
+}
+.enter-btn.ready .enter-text {
+  animation: ready-pulse 2s ease-in-out infinite;
+}
+@keyframes ready-pulse {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(255, 180, 210, 0.6)); }
+  50% { filter: drop-shadow(0 0 20px rgba(255, 200, 230, 1)); }
 }
 
 .enter-core {
@@ -1464,9 +1515,16 @@ onUnmounted(() => {
   .gate-crystal-wrap { width: min(80px, 20vw); height: min(80px, 20vw); }
   .enter-core { padding: 12px 40px; border-radius: 24px; }
   .enter-text { font-size: 13px; letter-spacing: 2px; }
-  .corner-hud { font-size: 8px; letter-spacing: 1px; gap: 6px; }
-  .hud-line { width: 20px; }
-  .hud-emoji { font-size: 8px; }
+  /* 移动端简化 HUD：缩小字号、淡化透明度，保留氛围但不喧宾夺主 */
+  .corner-hud {
+    font-size: 7px;
+    letter-spacing: 1px;
+    gap: 4px;
+    opacity: 0.55;
+  }
+  .hud-line { width: 14px; }
+  .hud-emoji { display: none; } /* 仅隐藏表情，文字保留 */
+  .hud-content span:last-child { display: none; } /* 隐藏第二行注释 */
   .brand-sub { font-size: 11px; letter-spacing: 2px; }
   .char-sparkle { font-size: 8px; top: -6px; right: -8px; }
 }

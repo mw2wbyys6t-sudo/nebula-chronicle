@@ -124,6 +124,7 @@ function playArpNote(freq, time) {
 
 function startArpeggio() {
   if (!audioCtx) return;
+  if (arpInterval) clearInterval(arpInterval);
 
   let chordIndex = 0;
   let noteIndex = 0;
@@ -211,10 +212,16 @@ export function useAudio() {
       await audioCtx.resume();
       isMuted.value = false;
       isPlaying.value = true;
+      // 恢复播放时重启 interval
+      if (!arpInterval) startArpeggio();
+      if (!chordInterval) startChordLoop();
     } else if (audioCtx.state === 'running') {
       await audioCtx.suspend();
       isMuted.value = true;
       isPlaying.value = false;
+      // 静音时清除 interval，避免空转
+      if (arpInterval) { clearInterval(arpInterval); arpInterval = null; }
+      if (chordInterval) { clearInterval(chordInterval); chordInterval = null; }
     }
   };
 

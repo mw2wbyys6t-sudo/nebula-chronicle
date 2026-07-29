@@ -15,24 +15,24 @@
 
     <template v-else>
       <div class="cg-vignette-overlay"></div>
-      <div class="cg-film-grain"></div>
+      <div class="cg-film-grain" :class="{ 'grain-paused': phase === 'universe' }"></div>
       <div class="cg-light-leak"></div>
-      <Transition name="phase" mode="out-in" @before-leave="onBeforeLeave" @after-enter="onAfterEnter">
+      <Transition name="phase" @before-leave="onBeforeLeave" @after-enter="onAfterEnter">
         <LoadingPhase v-if="phase === 'loading'" @done="goTo('showcase')" />
         <ShowcasePhase v-else-if="phase === 'showcase'" @skip="goTo('landing')" @done="goTo('landing')" />
         <LandingPhase v-else-if="phase === 'landing'" @start="goTo('universe')" />
         <UniversePhase v-else-if="phase === 'universe'" />
       </Transition>
 
-      <div class="phase-flash" :class="{ active: flashActive }"></div>
-      <div class="phase-rainbow" :class="{ active: flashActive }"></div>
-      <div class="phase-chromatic" :class="{ active: flashActive }"></div>
+      <div v-if="flashActive" class="phase-flash active"></div>
+      <div v-if="flashActive" class="phase-rainbow active"></div>
+      <div v-if="flashActive" class="phase-chromatic active"></div>
     </template>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, onErrorCaptured, defineAsyncComponent } from 'vue';
+import { ref, onMounted, onUnmounted, onErrorCaptured, defineAsyncComponent, h } from 'vue';
 import { bus } from './engines/core/EventBus.js';
 import LoadingPhase from './components/LoadingPhase.vue';
 import LandingPhase from './components/LandingPhase.vue';
@@ -41,17 +41,24 @@ import { useUiSound } from './composables/useUiSound.js';
 
 // UniversePhase 含 three.js (551KB)，使用异步组件，首屏不加载
 // 用户点击 Landing 幕的"开启次元之旅"时才动态拉取
-const UniversePhase = defineAsyncComponent(() => import('./components/UniversePhase.vue'));
+const UniversePhase = defineAsyncComponent({
+  loader: () => import('./components/UniversePhase.vue'),
+  loadingComponent: () => h('div', { class: 'universe-loading-placeholder' }, '星门充能中…'),
+  delay: 100,
+  timeout: 10000
+});
 
 const phase = ref('loading');
 const flashActive = ref(false);
 const fatalError = ref(null);
+let phaseLock = false;
 
 // 初始化 UI 音效（在用户首次交互时解锁 AudioContext）
 useUiSound.init();
 
 function goTo(next) {
-  if (phase.value === next) return;
+  if (phase.value === next || phaseLock) return;
+  phaseLock = true;
   flashActive.value = true;
   useUiSound.phaseChange();
   const delay = next === 'universe' ? 180 : 320;
@@ -60,6 +67,7 @@ function goTo(next) {
   }, delay);
   setTimeout(() => {
     flashActive.value = false;
+    phaseLock = false;
   }, next === 'universe' ? 900 : 700);
 }
 
@@ -126,6 +134,13 @@ onUnmounted(() => {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-size: 200px 200px;
   animation: grainShift 0.4s steps(4) infinite;
+  transition: opacity 0.5s ease;
+}
+
+/* Universe 相位降低 film grain 强度（不暂停，保留宇宙尘埃氛围） */
+.cg-film-grain.grain-paused {
+  animation-duration: 0.8s; /* 放慢速度 */
+  opacity: 0.015; /* 降低透明度而非完全移除 */
 }
 
 @keyframes grainShift {
@@ -154,21 +169,40 @@ onUnmounted(() => {
   100% { opacity: 0.7; transform: translate(-5px, 8px); }
 }
 
+/* 相位切换：crossfade 重叠过渡更流畅，但保留足够仪式感时长 */
 .phase-enter-active,
 .phase-leave-active {
-  transition: opacity 0.55s cubic-bezier(0.4, 0, 0.2, 1), transform 0.55s cubic-bezier(0.4, 0, 0.2, 1), filter 0.55s ease-out;
+  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), filter 0.5s ease-out;
 }
 
 .phase-enter-from {
   opacity: 0;
-  transform: scale(1.05);
-  filter: blur(10px) saturate(1.6) brightness(1.4);
+  transform: scale(1.04);
+  filter: blur(9px) saturate(1.5) brightness(1.35);
 }
 
 .phase-leave-to {
   opacity: 0;
-  transform: scale(0.97);
-  filter: blur(6px) brightness(0.7);
+  transform: scale(0.98);
+  filter: blur(5px) brightness(0.75);
+}
+
+/* UniversePhase 加载占位 */
+.universe-loading-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff9ec4;
+  font-size: 16px;
+  letter-spacing: 4px;
+  background: radial-gradient(ellipse at center, #1a0a2e 0%, #060310 70%);
+  animation: universeLoadingPulse 1.5s ease-in-out infinite;
+}
+@keyframes universeLoadingPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 .phase-flash {

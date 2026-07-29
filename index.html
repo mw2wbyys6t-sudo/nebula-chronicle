@@ -7,60 +7,141 @@
   <meta name="description" content="星云编年史 · Nebula Chronicle — 沉浸式手势交互动漫宇宙，穿越 60 年二次元历史">
   <title>星云编年史 · Nebula Chronicle</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <!-- Google Fonts 异步加载 -->
+  <!-- Google Fonts 异步加载（带超时兜底，国内网络环境友好） -->
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&family=Orbitron:wght@400;700;900&family=ZCOOL+XiaoWei&display=swap" onload="this.rel='stylesheet'">
+  <link id="nc-gfonts-link" rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&family=Orbitron:wght@400;700;900&family=ZCOOL+XiaoWei&display=swap">
   <noscript>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&family=Orbitron:wght@400;700;900&family=ZCOOL+XiaoWei&display=swap">
   </noscript>
+  <script>
+    // Google Fonts 加载逻辑：3秒超时则放弃，直接用本地/系统字体
+    (function() {
+      var link = document.getElementById('nc-gfonts-link');
+      if (!link) return;
+      var loaded = false;
+      var timeout = setTimeout(function() {
+        if (!loaded) {
+          console.warn('[Google Fonts] 加载超时（>3s），使用本地/系统字体');
+          try { link.removeAttribute('as'); link.removeAttribute('rel'); } catch(e) {}
+        }
+      }, 3000);
+      link.addEventListener('load', function() {
+        loaded = true;
+        clearTimeout(timeout);
+        link.rel = 'stylesheet';
+      });
+      link.addEventListener('error', function() {
+        loaded = true;
+        clearTimeout(timeout);
+        console.warn('[Google Fonts] 加载失败，使用本地/系统字体');
+      });
+    })();
+  </script>
   <style>
-    html { font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    /* Critical CSS 内联，防止首屏白闪 */
+    html { font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; color-scheme: dark; }
     html, body { margin: 0; padding: 0; height: 100%; background: #060310; overflow: hidden; }
     #app { min-height: 100%; }
-    /* 首屏幕布：Vue 挂载后移除 */
+
+    /* 首屏幕布：更精致的加载动画 */
     .boot-curtain {
       position: fixed; inset: 0; z-index: 99999;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       background: radial-gradient(ellipse at 50% 45%, #1a0a2e 0%, #0d0520 45%, #060310 100%);
-      transition: opacity 0.5s ease;
+      transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    .boot-curtain.gone { opacity: 0; pointer-events: none; }
+    .boot-curtain.gone { opacity: 0; pointer-events: none; transform: scale(1.06); }
+
+    /* 双环旋转加载器 */
     .boot-spinner {
-      width: 40px; height: 40px; border-radius: 50%;
-      border: 2px solid rgba(255,158,196,0.2);
+      position: relative;
+      width: 48px; height: 48px;
+    }
+    .boot-spinner::before,
+    .boot-spinner::after {
+      content: ''; position: absolute; inset: 0;
+      border-radius: 50%;
+      border: 2px solid transparent;
+    }
+    .boot-spinner::before {
       border-top-color: #ff9ec4;
-      animation: bootspin 1s linear infinite;
-      box-shadow: 0 0 16px rgba(255,158,196,0.4);
+      border-right-color: rgba(255,158,196,0.3);
+      animation: bootspin 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      box-shadow: 0 0 20px rgba(255,158,196,0.35);
+    }
+    .boot-spinner::after {
+      inset: 6px;
+      border-bottom-color: #c9b1ff;
+      border-left-color: rgba(201,177,255,0.2);
+      animation: bootspin 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite reverse;
     }
     @keyframes bootspin { to { transform: rotate(360deg); } }
+
     .boot-text {
-      margin-top: 20px;
-      color: #ff9ec4; font-family: 'Noto Sans SC', sans-serif;
-      letter-spacing: 6px; font-size: 14px;
+      margin-top: 24px;
+      color: #ff9ec4;
+      letter-spacing: 6px; font-size: 13px;
       opacity: 0.7; animation: preloadPulse 1.8s ease-in-out infinite;
+      text-shadow: 0 0 12px rgba(255,158,196,0.4);
     }
     @keyframes preloadPulse {
       0%, 100% { opacity: 0.35; }
       50% { opacity: 0.9; }
+    }
+
+    /* 背景星点装饰 */
+    .boot-stars {
+      position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
+      background-image:
+        radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.8), transparent),
+        radial-gradient(1px 1px at 60% 70%, rgba(255,200,230,0.6), transparent),
+        radial-gradient(1px 1px at 80% 20%, rgba(200,180,255,0.5), transparent),
+        radial-gradient(1px 1px at 40% 80%, rgba(255,255,255,0.4), transparent),
+        radial-gradient(1px 1px at 90% 50%, rgba(255,200,230,0.3), transparent);
+      background-size: 300px 300px;
+      animation: bootStarsDrift 20s linear infinite;
+    }
+    @keyframes bootStarsDrift {
+      from { transform: translateY(0); }
+      to { transform: translateY(-300px); }
     }
   </style>
 </head>
 <body>
   <div id="app"></div>
   <div class="boot-curtain" id="boot-curtain">
+    <div class="boot-stars"></div>
     <div class="boot-spinner"></div>
     <div class="boot-text">✦ 召唤星辰中 ✦</div>
   </div>
   <script type="module" src="/src/main.js" fetchpriority="high"></script>
   <script>
+    // 优化的 curtain 移除逻辑：多重保障，最短路径
+    // 1. Vue 挂载完成后主动调用（main.js 中触发）
+    // 2. window.load 兜底
+    // 3. 超时兜底：7秒后无论如何都移除（原8s，略快但仍保留充裕时间）
     window.addEventListener('load', () => {
-      setTimeout(() => {
-        const c = document.getElementById('boot-curtain');
-        if (c) { c.classList.add('gone'); setTimeout(() => c.remove(), 600); }
-      }, 300);
+      window.__ncCurtainArmed = true;
+      setTimeout(() => window.__ncRemoveCurtain && window.__ncRemoveCurtain(), 200);
     });
+
+    setTimeout(() => {
+      const c = document.getElementById('boot-curtain');
+      if (c && !c.classList.contains('gone')) {
+        console.warn('[boot-curtain] 超时强制移除（超过7秒）');
+        window.__ncRemoveCurtain && window.__ncRemoveCurtain();
+      }
+    }, 7000);
+
+    window.__ncRemoveCurtain = function() {
+      const c = document.getElementById('boot-curtain');
+      if (c && !c.classList.contains('gone')) {
+        c.classList.add('gone');
+        setTimeout(() => { try { c.remove(); } catch(e) {} }, 700);
+      }
+    };
   </script>
 </body>
 </html>
